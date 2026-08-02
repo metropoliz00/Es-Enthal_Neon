@@ -29,13 +29,30 @@ let dbTablesInitialized = false;
 let dbInitPromise: Promise<any> | null = null;
 
 async function ensureDbTables() {
-  const hasEnv = !!(process.env.DATABASE_URL || process.env.SQL_HOST);
+  let hasEnv = false;
+  if (process.env.DATABASE_URL) {
+    const url = process.env.DATABASE_URL.trim();
+    if (url && url !== '""' && url !== "''") {
+      hasEnv = true;
+    }
+  }
+  if (process.env.SQL_HOST) {
+    const host = process.env.SQL_HOST.trim();
+    if (host && host !== '""' && host !== "''") {
+      hasEnv = true;
+    }
+  }
+
   if (!hasEnv || dbTablesInitialized) return;
 
   if (!dbInitPromise) {
     dbInitPromise = initDbTables()
-      .then(() => {
-        dbTablesInitialized = true;
+      .then((success) => {
+        if (success) {
+          dbTablesInitialized = true;
+        } else {
+          dbInitPromise = null;
+        }
       })
       .catch((e) => {
         console.error("Lazy table init failed:", e);
@@ -45,8 +62,8 @@ async function ensureDbTables() {
   await dbInitPromise;
 }
 
-// Ensure DB tables on every request asynchronously in background
-app.use(async (req, res, next) => {
+// Trigger DB table check asynchronously without delaying response
+app.use((req, res, next) => {
   ensureDbTables().catch(() => {});
   next();
 });
@@ -55,23 +72,46 @@ app.use(async (req, res, next) => {
 
 // Health & DB Connection Check Endpoint
 app.get(["/api/health", "/health"], async (req, res) => {
-  const hasEnv = !!(process.env.DATABASE_URL || process.env.SQL_HOST);
-  try {
-    const pool = createPool();
-    const result = await pool.query("SELECT NOW()");
-    res.json({
-      status: "ok",
-      database: "connected",
-      hasEnv,
-      time: result.rows[0].now
-    });
-  } catch (err: any) {
-    console.error("Database connection health check failed:", err.message);
-    res.status(500).json({
+  let connectionString = process.env.DATABASE_URL?.trim() || "";
+  if ((connectionString.startsWith('"') && connectionString.endsWith('"')) ||
+      (connectionString.startsWith("'") && connectionString.endsWith("'"))) {
+    connectionString = connectionString.slice(1, -1).trim();
+  }
+
+  const hasEnv = !!(connectionString || process.env.SQL_HOST?.trim());
+
+  if (!hasEnv) {
+    return res.status(200).json({
       status: "error",
       database: "disconnected",
-      hasEnv,
-      error: err.message || "Gagal terhubung ke database Neon / PostgreSQL"
+      hasEnv: false,
+      error: "DATABASE_URL belum diisi di Environment Variables Vercel.",
+      message: "DATABASE_URL belum disetting di Vercel Dashboard. Silakan tambahkan variabel DATABASE_URL di Settings > Environment Variables di Vercel."
+    });
+  }
+
+  try {
+    const pool = createPool();
+    // 5-second query timeout safeguard so health checks never hang
+    const result = await Promise.race([
+      pool.query("SELECT NOW()"),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Koneksi database timeout (5 detik). Pastikan database Neon Anda aktif.")), 5000))
+    ]) as any;
+
+    return res.json({
+      status: "ok",
+      database: "connected",
+      hasEnv: true,
+      time: result.rows?.[0]?.now
+    });
+  } catch (err: any) {
+    console.error("Database connection health check failed:", err?.message || err);
+    return res.status(200).json({
+      status: "error",
+      database: "disconnected",
+      hasEnv: true,
+      error: err?.message || "Gagal terhubung ke database Neon / PostgreSQL",
+      message: "Gagal terhubung ke database Neon: " + (err?.message || "Koneksi terputus")
     });
   }
 });

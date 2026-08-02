@@ -4,26 +4,28 @@ Aplikasi ini telah dikonfigurasi secara **Full-Stack (Express API + React Vite)*
 
 ---
 
-## Mengapa Sebelumnya Ditolak / Belum Connect di Vercel?
+## Solusi Error `FUNCTION_INVOCATION_FAILED` (HTTP 500) di Vercel
 
-Ada 2 penyebab utama mengapa di AI Studio sudah connect namun di Vercel belum:
+Jika Anda mengalami error `FUNCTION_INVOCATION_FAILED` di Vercel, penyebab utamanya adalah:
 
-1. **Variabel Lingkungan (`DATABASE_URL`) Belum Diisi di Vercel Dashboard**
-   Di AI Studio, `DATABASE_URL` sudah tersimpan di Secrets local environment. Vercel adalah server terpisah, sehingga Anda **harus mengisi `DATABASE_URL` di Vercel Dashboard**.
-2. **Backend API Route Vercel (Serverless)**
-   Secara bawaan, Vercel hanya menyajikan file statis (HTML/JS) frontend. Kami telah menambahkan file `/api/index.ts` dan `vercel.json` agar Vercel secara otomatis menjalankan Express backend API secara **Serverless Function**.
+1. **`DATABASE_URL` Belum Disetting / Terbungkus Tanda Kutip di Vercel**
+   Jika `DATABASE_URL` diisi dengan tanda kutip (misal `"postgres://..."`), atau belum disetting, koneksi database akan gagal saat Serverless Function diinisialisasi.
+2. **Timeout Inisialisasi Database Serverless**
+   Batas waktu eksekusi Serverless Function di Vercel adalah 10 detik. Kami telah memperbarui kode backend dengan **Sanitasi String**, **Pool Connection Timeout 5s**, dan **Non-blocking Table Initialization** agar Serverless Function Vercel tidak pernah crash atau timeout.
 
 ---
 
-## Langkah 1: Tambahkan Environment Variable di Vercel (WAJIB)
+## Langkah 1: Pasang / Periksa `DATABASE_URL` di Vercel (WAJIB)
 
 Agar Vercel dapat terhubung ke Neon PostgreSQL:
 
 1. Buka dashboard Vercel Anda di [vercel.com](https://vercel.com) dan pilih proyek aplikasi Anda.
 2. Masuk ke menu **Settings** > **Environment Variables**.
-3. Tambahkan variabel baru:
+3. Tambahkan (atau Edit) variabel bernama `DATABASE_URL`:
    - **Key / Name**: `DATABASE_URL`
-   - **Value**: Tempelkan *Connection String* Neon Anda (contoh: `postgres://user:password@ep-xyz.neon.tech/neondb?sslmode=require`)
+   - **Value**: Tempelkan Connection String Neon Anda **TANPA TANDA KUTIP** di awal/akhir!
+     - Contoh yang BENAR: `postgresql://neondb_owner:password@ep-xyz-pooler.singapore.aws.neon.tech/neondb?sslmode=require`
+     - Pastikan terdapat `?sslmode=require` di akhir string koneksi.
    - Centang opsi **Production**, **Preview**, dan **Development**.
 4. Klik **Save**.
 
@@ -31,11 +33,11 @@ Agar Vercel dapat terhubung ke Neon PostgreSQL:
 
 ## Langkah 2: Deploy Ulang (Redeploy) di Vercel
 
-Setelah menambahkan Environment Variable `DATABASE_URL`:
+Setelah menambahkan / memperbarui Environment Variable `DATABASE_URL`:
 
 1. Buka tab **Deployments** di Vercel.
-2. Klik titik tiga (`...`) di samping deployment terbaru, lalu pilih **Redeploy** (atau lakukan `git push` ulang dari repositori Anda).
-3. Setelah redeploy selesai, buka aplikasi Anda di Vercel.
+2. Klik titik tiga (`...`) di samping deployment terbaru, lalu pilih **Redeploy** (centang *Use existing Build Cache* atau Uncheck jika ingin clean build).
+3. Atau lakukan `git push` ulang dari repositori Anda jika dihubungkan dengan GitHub.
 
 ---
 
@@ -48,12 +50,12 @@ Setelah menambahkan Environment Variable `DATABASE_URL`:
 
 ---
 
-## Struktur File Backend & Vercel yang Dibuat Automatis
+## Struktur File Backend & Vercel yang Diperbarui Automatis
 
 - **`vercel.json`**: Mengarahkan semua request `/api/*` ke Serverless Function Vercel dan halaman lainnya ke SPA (`index.html`).
-- **`api/index.ts`**: Entrypoint Serverless Function Express untuk Vercel.
-- **`src/app.ts`**: Modul pusat API routing Express & koneksi Drizzle Neon DB.
-- **`src/db/index.ts`**: Manajemen Connection Pool PostgreSQL dengan SSL otomatis `rejectUnauthorized: false` untuk Neon.
+- **`api/index.ts`**: Express request handler serverless wrapper untuk Vercel Node runtime.
+- **`src/app.ts`**: Express routing, health check dengan timeout safeguard 5 detik, & auto table initializer.
+- **`src/db/index.ts`**: Manajemen Connection Pool PostgreSQL dengan sanitasi string otomatis & SSL `rejectUnauthorized: false` untuk Neon.
 
 ---
 
@@ -61,6 +63,7 @@ Setelah menambahkan Environment Variable `DATABASE_URL`:
 
 ```bash
 git add .
-git commit -m "Add Vercel serverless API setup and Neon DB auto connection"
+git commit -m "Fix Vercel FUNCTION_INVOCATION_FAILED and optimize Neon DB connection"
 git push origin main
 ```
+

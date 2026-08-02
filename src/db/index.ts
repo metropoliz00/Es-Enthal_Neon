@@ -8,8 +8,23 @@ declare global {
 
 export const createPool = () => {
   if (!global._postgresPool) {
-    const connectionString = process.env.DATABASE_URL;
-    const host = process.env.SQL_HOST;
+    let connectionString = process.env.DATABASE_URL?.trim();
+    let host = process.env.SQL_HOST?.trim();
+
+    // Remove quotes if user wrapped the connection string or host in quotes
+    if (connectionString) {
+      if ((connectionString.startsWith('"') && connectionString.endsWith('"')) ||
+          (connectionString.startsWith("'") && connectionString.endsWith("'"))) {
+        connectionString = connectionString.slice(1, -1).trim();
+      }
+    }
+
+    if (host) {
+      if ((host.startsWith('"') && host.endsWith('"')) ||
+          (host.startsWith("'") && host.endsWith("'"))) {
+        host = host.slice(1, -1).trim();
+      }
+    }
 
     const isLocalhost = (str?: string) => {
       if (!str) return true;
@@ -21,9 +36,9 @@ export const createPool = () => {
       global._postgresPool = new Pool({
         connectionString,
         ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
-        max: 5,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 5000,
+        max: 3,
+        idleTimeoutMillis: 10000,
+        connectionTimeoutMillis: 8000,
       });
     } else if (host) {
       const needsSsl = !isLocalhost(host);
@@ -34,9 +49,9 @@ export const createPool = () => {
         database: process.env.SQL_DB_NAME,
         port: process.env.SQL_PORT ? Number(process.env.SQL_PORT) : 5432,
         ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
-        max: 5,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 5000,
+        max: 3,
+        idleTimeoutMillis: 10000,
+        connectionTimeoutMillis: 8000,
       });
     } else {
       // Dummy pool if no env set - fail quickly if queried
@@ -48,9 +63,9 @@ export const createPool = () => {
       });
     }
 
-    // Prevent unhandled pool-level errors from crashing the application
+    // Prevent unhandled pool-level errors from crashing the application or serverless process
     global._postgresPool.on('error', (err) => {
-      console.error('Unexpected error on idle SQL pool client:', err);
+      console.error('Unexpected error on idle SQL pool client:', err?.message || err);
     });
   }
   return global._postgresPool;
