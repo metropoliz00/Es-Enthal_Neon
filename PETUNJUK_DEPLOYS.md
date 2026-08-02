@@ -1,71 +1,47 @@
-# Panduan Deployment & Koneksi Database Neon Vercel
+# Panduan Deployment & Koneksi Database Neon (Netlify & Vercel)
 
-Aplikasi ini telah diperbarui dengan driver khusus **`@neondatabase/serverless`** (koneksi PostgreSQL via WebSocket/HTTP Port 443) yang secara khusus dirancang oleh tim Neon untuk Vercel Serverless Function.
-
----
-
-## Solusi Utama Error `FUNCTION_INVOCATION_FAILED` (HTTP 500) di Vercel
-
-Ada **2 Penyebab Utama** mengapa koneksi bekerja di AI Studio tetapi belum terhubung / 500 di Vercel:
-
-1. **Environment Variables Vercel Belum Dicentang untuk All Environments (Production, Preview, Development)**
-   Saat membuka Vercel melalui link domain preview (misal `cbt-tka-xxx.vercel.app`), jika `DATABASE_URL` hanya disetting untuk *Production*, maka serverless preview function **tidak dapat membaca `DATABASE_URL`**.
-2. **Belum Melakukan RE-DEPLOY Setelah Menambah Environment Variable**
-   Di Vercel, menambahkan/mengedit `DATABASE_URL` di Settings **TIDAK** otomatis memperbarui deployment yang sedang aktif. Anda **WAJIB melakukan Redeploy** agar serverless function memuat variabel lingkungan yang baru.
+Aplikasi ini telah dikonfigurasi penuh untuk mendukung deployment di **Netlify** maupun **Vercel** dengan database **Neon PostgreSQL**.
 
 ---
 
-## Langkah 1: Atur `DATABASE_URL` di Vercel Dashboard (WAJIB)
+## 🚀 Panduan Deployment di Netlify (Paling Direkomendasikan)
 
-1. Buka dashboard Vercel Anda di [vercel.com](https://vercel.com) dan pilih proyek aplikasi Anda.
-2. Masuk ke menu **Settings** > **Environment Variables**.
-3. Tambahkan atau Edit variabel bernama `DATABASE_URL`:
-   - **Key / Name**: `DATABASE_URL`
-   - **Value**: Tempelkan Connection String Neon Anda **TANPA TANDA KUTIP** (`"` atau `'`)!
-     - Contoh: `postgresql://neondb_owner:npg_xxx@ep-xyz-pooler.singapore.aws.neon.tech/neondb?sslmode=require`
-   - **Target Environments** (PENTING!): Centang KETIGA opsi:
-     - [x] **Production**
-     - [x] **Preview**
-     - [x] **Development**
-4. Klik **Save**.
+Jika Anda mendepositkan/mendeploy aplikasi ini ke **Netlify**, ikuti langkah-langkah berikut agar API backend dan koneksi database Neon langsung terhubung sempurna:
 
----
+### 1. Hubungkan Repositori ke Netlify
+1. Buka [Netlify Dashboard](https://app.netlify.com).
+2. Klik **Add new site** > **Import an existing project**.
+3. Pilih penyedia Git Anda (GitHub / GitLab) dan pilih repositori proyek ini.
+4. Pada pengaturan build (**Build settings**):
+   - **Build command**: `npm run build`
+   - **Publish directory**: `dist`
+   - **Functions directory**: `netlify/functions` (sudah otomatis diset via `netlify.toml`).
+5. Klik tombol **Show advanced** atau abaikan, karena konfigurasi `netlify.toml` sudah mencakup redirect API otomatis ke `/.netlify/functions/api`.
 
-## Langkah 2: Lakukan REDEPLOY di Vercel (Sangat Penting!)
+### 2. Set Environment Variables di Netlify (WAJIB)
+1. Setelah proyek dibuat (atau sebelum deploy), masuk ke **Site configuration** > **Environment variables**.
+2. Tambahkan variabel baru:
+   - **Key**: `DATABASE_URL`
+   - **Value**: Tempelkan connection string Neon Anda (contoh: `postgresql://neondb_owner:password@ep-xyz.singapore.aws.neon.tech/neondb?sslmode=require`). Pastikan **tanpa tanda kutip** (`"` atau `'`).
+3. Klik **Save**.
 
-Setelah menyimpan `DATABASE_URL`:
-
-1. Buka tab **Deployments** di bagian atas Vercel Dashboard.
-2. Cari deployment paling atas (terbaru).
-3. Klik tombol titik tiga (**`...`**) di sebelah kanan deployment tersebut.
-4. Pilih **Redeploy** (lalu klik tombol **Redeploy** lagi pada konfirmasi pop-up).
-5. Tunggu proses build selesai (~30-60 detik).
-
----
-
-## Langkah 3: Tes Ulang Koneksi
-
-1. Buka aplikasi Anda di Vercel.
-2. Masuk ke menu Admin / Pengaturan di tab **Konfigurasi**.
-3. Klik tombol **Cek Koneksi**.
-4. Banner akan berubah menjadi **Connected** dengan lampu indikator hijau aktif!
+### 3. Deploy Ulang (Trigger Deploy)
+1. Jika sudah terlanjur deploy dan mendapat 404/error, masuk ke tab **Deploys**.
+2. Klik **Trigger deploy** > **Clear cache and deploy site**.
+3. Setelah build selesai, buka URL Netlify Anda. Aplikasi dan API backend akan berfungsi 100%!
 
 ---
 
-## Pembaruan Sistem yang Telah Diterapkan Automatis
+## 🛠️ Panduan Deployment di Vercel
 
-- **`@neondatabase/serverless`**: Menggantikan koneksi TCP port 5432 biasa dengan driver serverless WebSocket/HTTP port 443 yang tahan cold-start & bebas timeout.
-- **`src/db/index.ts`**: Sanitasi string otomatis (menghapus tanda kutip `"` atau `'` jika pengguna tidak sengaja menyalinnya).
-- **`api/index.ts`**: Serverless function wrapper dengan penanganan error internal agar tidak menyebabkan crash 500.
+Jika menggunakan **Vercel**:
+1. Masuk ke **Settings** > **Environment Variables**.
+2. Tambahkan `DATABASE_URL` dan pastikan mencentang **Production**, **Preview**, dan **Development**.
+3. **PENTING**: Masuk ke tab **Deployments**, klik `...` pada deployment terakhir, lalu klik **Redeploy**.
 
 ---
 
-## Perintah Git Push ke GitHub (Jika Deploy via Git)
-
-```bash
-git add .
-git commit -m "Upgrade to @neondatabase/serverless for Vercel deployment"
-git push origin main
-```
-
-
+## 🔍 Solusi Cepat Jika Masih Belum Connect:
+1. **Pastikan Connection String Neon benar**: Format harus dimulai dengan `postgresql://...` dan berakhiran `?sslmode=require`.
+2. **Jangan gunakan tanda kutip**: Saat memasukkan `DATABASE_URL` di Vercel atau Netlify, pastikan tidak ada tanda kutip ganda (`"`) atau tunggal (`'`) di awal/akhir string.
+3. **Redeploy setelah ubah Environment Variable**: Baik di Vercel maupun Netlify, setiap kali Anda mengubah env var, Anda **wajib melakukan manual redeploy** agar variabel terbaca oleh serverless function.
