@@ -288,12 +288,12 @@ app.get("/api/questions", async (req, res) => {
       return res.json({ questions: [] });
     }
 
-    const qIds = qList.map(q => q.id);
+    const qIds = qList.map((q: any) => q.id);
     const optList = await db.select().from(options).where(inArray(options.question_id, qIds));
 
-    const merged = qList.map(q => ({
+    const merged = qList.map((q: any) => ({
       ...q,
-      options: optList.filter(o => o.question_id === q.id)
+      options: optList.filter((o: any) => o.question_id === q.id)
     }));
 
     res.json({ questions: merged });
@@ -588,9 +588,9 @@ app.get("/api/recap", async (req, res) => {
     const uList = await db.select().from(users);
     const eList = await db.select().from(exams);
 
-    const merged = seList.map(se => {
-      const userRow = uList.find(u => u.username === se.user_id);
-      const examRow = eList.find(e => e.id === se.exam_id);
+    const merged = seList.map((se: any) => {
+      const userRow = uList.find((u: any) => u.username === se.user_id);
+      const examRow = eList.find((e: any) => e.id === se.exam_id);
       return {
         ...se,
         users: userRow || null,
@@ -614,13 +614,13 @@ app.get("/api/analysis", async (req, res) => {
       return res.json({ list: [] });
     }
 
-    const seIds = seList.map(se => se.id);
+    const seIds = seList.map((se: any) => se.id);
     const ansList = await db.select().from(answers).where(inArray(answers.student_exam_id, seIds));
     const qList = await db.select().from(questions).where(eq(questions.exam_id, subject));
 
-    const merged = seList.map(se => {
-      const seAnswers = ansList.filter(a => a.student_exam_id === se.id).map(a => {
-        const qRow = qList.find(q => q.id === a.question_id);
+    const merged = seList.map((se: any) => {
+      const seAnswers = ansList.filter((a: any) => a.student_exam_id === se.id).map((a: any) => {
+        const qRow = qList.find((q: any) => q.id === a.question_id);
         return {
           ...a,
           questions: qRow || null
@@ -699,12 +699,12 @@ app.get("/api/survey/questions", async (req, res) => {
       return res.json({ list: [] });
     }
 
-    const qIds = qList.map(q => q.id);
+    const qIds = qList.map((q: any) => q.id);
     const optList = await db.select().from(options).where(inArray(options.question_id, qIds));
 
-    const merged = qList.map(q => ({
+    const merged = qList.map((q: any) => ({
       ...q,
-      options: optList.filter(o => o.question_id === q.id)
+      options: optList.filter((o: any) => o.question_id === q.id)
     }));
 
     res.json({ list: merged });
@@ -740,12 +740,12 @@ app.get("/api/survey/recap", async (req, res) => {
       return res.json({ list: [] });
     }
 
-    const seIds = seList.map(se => se.id);
+    const seIds = seList.map((se: any) => se.id);
     const ansList = await db.select().from(answers).where(inArray(answers.student_exam_id, seIds));
 
-    const merged = seList.map(se => ({
+    const merged = seList.map((se: any) => ({
       ...se,
-      answers: ansList.filter(a => a.student_exam_id === se.id)
+      answers: ansList.filter((a: any) => a.student_exam_id === se.id)
     }));
 
     res.json({ list: merged });
