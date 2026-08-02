@@ -1,6 +1,6 @@
 import express from "express";
-import { db, createPool } from "./db/index.ts";
-import { initDbTables } from "./db/init.ts";
+import { db, createPool } from "./db/index";
+import { initDbTables } from "./db/init";
 import { 
   users, 
   exams, 
@@ -17,7 +17,7 @@ import {
   lccQuestions, 
   lccConfig, 
   lccHistory 
-} from "./db/schema.ts";
+} from "./db/schema";
 import { eq, and, inArray, ne, desc, asc } from "drizzle-orm";
 
 export const app = express();

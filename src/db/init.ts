@@ -1,4 +1,4 @@
-import { createPool } from './index.ts';
+import { createPool } from './index';
 
 export async function initDbTables() {
   const hasEnv = !!(process.env.DATABASE_URL || process.env.SQL_HOST);

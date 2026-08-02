@@ -109,8 +109,19 @@ export const api = {
   checkDatabaseConnection: async (): Promise<{ status: string, database: string, hasEnv: boolean, time?: string, error?: string, message?: string }> => {
     try {
         const res = await fetch("/api/health");
-        const data = await res.json();
-        return data;
+        const text = await res.text();
+        try {
+            const data = JSON.parse(text);
+            return data;
+        } catch (jsonErr) {
+            return {
+                status: "error",
+                database: "disconnected",
+                hasEnv: false,
+                error: `HTTP ${res.status}: ${text.slice(0, 150)}`,
+                message: "Server Vercel mengembalikan respon non-JSON. Pastikan DATABASE_URL sudah disetting di Vercel Environment Variables."
+            };
+        }
     } catch (e: any) {
         return {
             status: "error",
