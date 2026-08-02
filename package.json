@@ -1,0 +1,36 @@
+{
+  "name": "cbt-tka-system",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx server.ts",
+    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "start": "node dist/server.cjs",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@types/canvas-confetti": "^1.9.0",
+    "@types/express": "^5.0.6",
+    "@types/pg": "^8.20.3",
+    "@types/react": "^18.2.15",
+    "@types/react-dom": "^18.2.7",
+    "@vitejs/plugin-react": "^4.0.3",
+    "canvas-confetti": "^1.9.4",
+    "dotenv": "^17.4.2",
+    "drizzle-kit": "^0.31.10",
+    "drizzle-orm": "^0.45.2",
+    "esbuild": "^0.28.1",
+    "express": "^5.2.1",
+    "lucide-react": "^0.460.0",
+    "motion": "^12.43.0",
+    "pg": "^8.22.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "tsx": "^4.23.1",
+    "typescript": "^5.0.2",
+    "vite": "^4.4.5",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {}
+}
