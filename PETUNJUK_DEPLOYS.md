@@ -1,61 +1,62 @@
-# Panduan Deployment & Koneksi Database Neon (Vercel, Render & AI Studio)
+# Panduan Deployment & Koneksi Database Neon Vercel
 
-Aplikasi ini telah dikonfigurasi secara **Full-Stack (Express API + React Vite)** dan mendukung penuh koneksi ke **Neon DB (PostgreSQL)** baik di AI Studio maupun saat di-deploy ke **Vercel** atau **Render**.
-
----
-
-## Solusi Error `FUNCTION_INVOCATION_FAILED` (HTTP 500) di Vercel
-
-Jika Anda mengalami error `FUNCTION_INVOCATION_FAILED` di Vercel, penyebab utamanya adalah:
-
-1. **`DATABASE_URL` Belum Disetting / Terbungkus Tanda Kutip di Vercel**
-   Jika `DATABASE_URL` diisi dengan tanda kutip (misal `"postgres://..."`), atau belum disetting, koneksi database akan gagal saat Serverless Function diinisialisasi.
-2. **Timeout Inisialisasi Database Serverless**
-   Batas waktu eksekusi Serverless Function di Vercel adalah 10 detik. Kami telah memperbarui kode backend dengan **Sanitasi String**, **Pool Connection Timeout 5s**, dan **Non-blocking Table Initialization** agar Serverless Function Vercel tidak pernah crash atau timeout.
+Aplikasi ini telah diperbarui dengan driver khusus **`@neondatabase/serverless`** (koneksi PostgreSQL via WebSocket/HTTP Port 443) yang secara khusus dirancang oleh tim Neon untuk Vercel Serverless Function.
 
 ---
 
-## Langkah 1: Pasang / Periksa `DATABASE_URL` di Vercel (WAJIB)
+## Solusi Utama Error `FUNCTION_INVOCATION_FAILED` (HTTP 500) di Vercel
 
-Agar Vercel dapat terhubung ke Neon PostgreSQL:
+Ada **2 Penyebab Utama** mengapa koneksi bekerja di AI Studio tetapi belum terhubung / 500 di Vercel:
+
+1. **Environment Variables Vercel Belum Dicentang untuk All Environments (Production, Preview, Development)**
+   Saat membuka Vercel melalui link domain preview (misal `cbt-tka-xxx.vercel.app`), jika `DATABASE_URL` hanya disetting untuk *Production*, maka serverless preview function **tidak dapat membaca `DATABASE_URL`**.
+2. **Belum Melakukan RE-DEPLOY Setelah Menambah Environment Variable**
+   Di Vercel, menambahkan/mengedit `DATABASE_URL` di Settings **TIDAK** otomatis memperbarui deployment yang sedang aktif. Anda **WAJIB melakukan Redeploy** agar serverless function memuat variabel lingkungan yang baru.
+
+---
+
+## Langkah 1: Atur `DATABASE_URL` di Vercel Dashboard (WAJIB)
 
 1. Buka dashboard Vercel Anda di [vercel.com](https://vercel.com) dan pilih proyek aplikasi Anda.
 2. Masuk ke menu **Settings** > **Environment Variables**.
-3. Tambahkan (atau Edit) variabel bernama `DATABASE_URL`:
+3. Tambahkan atau Edit variabel bernama `DATABASE_URL`:
    - **Key / Name**: `DATABASE_URL`
-   - **Value**: Tempelkan Connection String Neon Anda **TANPA TANDA KUTIP** di awal/akhir!
-     - Contoh yang BENAR: `postgresql://neondb_owner:password@ep-xyz-pooler.singapore.aws.neon.tech/neondb?sslmode=require`
-     - Pastikan terdapat `?sslmode=require` di akhir string koneksi.
-   - Centang opsi **Production**, **Preview**, dan **Development**.
+   - **Value**: Tempelkan Connection String Neon Anda **TANPA TANDA KUTIP** (`"` atau `'`)!
+     - Contoh: `postgresql://neondb_owner:npg_xxx@ep-xyz-pooler.singapore.aws.neon.tech/neondb?sslmode=require`
+   - **Target Environments** (PENTING!): Centang KETIGA opsi:
+     - [x] **Production**
+     - [x] **Preview**
+     - [x] **Development**
 4. Klik **Save**.
 
 ---
 
-## Langkah 2: Deploy Ulang (Redeploy) di Vercel
+## Langkah 2: Lakukan REDEPLOY di Vercel (Sangat Penting!)
 
-Setelah menambahkan / memperbarui Environment Variable `DATABASE_URL`:
+Setelah menyimpan `DATABASE_URL`:
 
-1. Buka tab **Deployments** di Vercel.
-2. Klik titik tiga (`...`) di samping deployment terbaru, lalu pilih **Redeploy** (centang *Use existing Build Cache* atau Uncheck jika ingin clean build).
-3. Atau lakukan `git push` ulang dari repositori Anda jika dihubungkan dengan GitHub.
-
----
-
-## Langkah 3: Verifikasi Koneksi di Vercel
-
-1. Buka halaman Admin / Pengaturan di aplikasi Vercel Anda (`/admin`).
-2. Masuk ke tab **Konfigurasi**.
-3. Status koneksi di banner teratas akan otomatis menampilkan status hijau:
-   `Database Connected` dengan indikator aktif!
+1. Buka tab **Deployments** di bagian atas Vercel Dashboard.
+2. Cari deployment paling atas (terbaru).
+3. Klik tombol titik tiga (**`...`**) di sebelah kanan deployment tersebut.
+4. Pilih **Redeploy** (lalu klik tombol **Redeploy** lagi pada konfirmasi pop-up).
+5. Tunggu proses build selesai (~30-60 detik).
 
 ---
 
-## Struktur File Backend & Vercel yang Diperbarui Automatis
+## Langkah 3: Tes Ulang Koneksi
 
-- **`vercel.json`**: Mengarahkan semua request `/api/*` ke Serverless Function Vercel dan halaman lainnya ke SPA (`index.html`).
-- **`api/index.ts`**: Express request handler serverless wrapper untuk Vercel Node runtime.
-- **`src/app.ts`**: Express routing, health check dengan timeout safeguard 5 detik, & auto table initializer.
-- **`src/db/index.ts`**: Manajemen Connection Pool PostgreSQL dengan sanitasi string otomatis & SSL `rejectUnauthorized: false` untuk Neon.
+1. Buka aplikasi Anda di Vercel.
+2. Masuk ke menu Admin / Pengaturan di tab **Konfigurasi**.
+3. Klik tombol **Cek Koneksi**.
+4. Banner akan berubah menjadi **Connected** dengan lampu indikator hijau aktif!
+
+---
+
+## Pembaruan Sistem yang Telah Diterapkan Automatis
+
+- **`@neondatabase/serverless`**: Menggantikan koneksi TCP port 5432 biasa dengan driver serverless WebSocket/HTTP port 443 yang tahan cold-start & bebas timeout.
+- **`src/db/index.ts`**: Sanitasi string otomatis (menghapus tanda kutip `"` atau `'` jika pengguna tidak sengaja menyalinnya).
+- **`api/index.ts`**: Serverless function wrapper dengan penanganan error internal agar tidak menyebabkan crash 500.
 
 ---
 
@@ -63,7 +64,8 @@ Setelah menambahkan / memperbarui Environment Variable `DATABASE_URL`:
 
 ```bash
 git add .
-git commit -m "Fix Vercel FUNCTION_INVOCATION_FAILED and optimize Neon DB connection"
+git commit -m "Upgrade to @neondatabase/serverless for Vercel deployment"
 git push origin main
 ```
+
 
