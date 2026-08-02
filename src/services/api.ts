@@ -106,6 +106,22 @@ const ensureExamExists = async (subject: string): Promise<string> => {
 };
 
 export const api = {
+  checkDatabaseConnection: async (): Promise<{ status: string, database: string, hasEnv: boolean, time?: string, error?: string, message?: string }> => {
+    try {
+        const res = await fetch("/api/health");
+        const data = await res.json();
+        return data;
+    } catch (e: any) {
+        return {
+            status: "error",
+            database: "disconnected",
+            hasEnv: false,
+            error: e.message || "Gagal menghubungi server",
+            message: "Tidak dapat terhubung ke server backend (/api/health)"
+        };
+    }
+  },
+
   login: async (username: string, password?: string): Promise<{user: User | null, error?: string}> => {
     console.log("Attempting login via server for:", username);
     try {

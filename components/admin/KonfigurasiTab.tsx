@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
-import { Save, Loader2, Building, UserSquare, Calendar, Shield, School, UserCircle, Briefcase, Lock, Upload, Image as ImageIcon, AlertCircle, Plus, Trash2, ListChecks, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
+import { Save, Loader2, Building, UserSquare, Calendar, Shield, School, UserCircle, Briefcase, Lock, Upload, Image as ImageIcon, AlertCircle, Plus, Trash2, ListChecks, BookOpen, ChevronDown, ChevronUp, Database, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
 import { api } from '../../src/services/api';
 import { User } from '../../types';
 import { getSubjects, getExamTypes, getExamSubjectMapping } from '../../utils/adminHelpers';
@@ -12,6 +12,27 @@ const KonfigurasiTab = ({ currentUser }: { currentUser: User }) => {
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [showDeleteExamTypeModal, setShowDeleteExamTypeModal] = useState(false);
+
+    const [dbHealth, setDbHealth] = useState<{
+        status: string;
+        database: string;
+        hasEnv: boolean;
+        time?: string;
+        error?: string;
+        message?: string;
+    } | null>(null);
+    const [checkingDb, setCheckingDb] = useState(false);
+
+    const runCheckDb = async () => {
+        setCheckingDb(true);
+        const result = await api.checkDatabaseConnection();
+        setDbHealth(result);
+        setCheckingDb(false);
+    };
+
+    useEffect(() => {
+        runCheckDb();
+    }, []);
     
     const [formData, setFormData] = useState({
         schoolName: '',
@@ -268,6 +289,89 @@ const KonfigurasiTab = ({ currentUser }: { currentUser: User }) => {
 
             <div className="space-y-8">
                 
+                {/* DATABASE NEON CONNECTION STATUS BANNER */}
+                {dbHealth?.database === 'connected' ? (
+                    <div className="p-4 rounded-2xl bg-emerald-50/90 border border-emerald-200/80 flex items-center justify-between gap-3 text-emerald-900 shadow-sm">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 rounded-xl bg-emerald-500/15 text-emerald-600 flex items-center justify-center shrink-0">
+                                <Database size={22} className="text-emerald-600" />
+                            </div>
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    Connected
+                                </span>
+                            </div>
+                        </div>
+                        <button
+                            onClick={runCheckDb}
+                            disabled={checkingDb}
+                            title="Cek Ulang Koneksi"
+                            className="px-3 py-1.5 bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl transition flex items-center gap-1.5 text-xs font-semibold shadow-xs shrink-0 active:scale-95 disabled:opacity-50"
+                        >
+                            <RefreshCw size={13} className={checkingDb ? 'animate-spin' : ''} />
+                            <span className="hidden sm:inline">Cek Koneksi</span>
+                        </button>
+                    </div>
+                ) : (
+                    <div className="p-5 rounded-2xl border bg-amber-50 border-amber-200 text-amber-900 transition-all">
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                            <div className="flex items-start gap-3">
+                                <div className="p-2.5 rounded-xl mt-0.5 bg-amber-500/10 text-amber-600">
+                                    <Database size={24} />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h4 className="font-extrabold text-base">
+                                            Status Koneksi Database
+                                        </h4>
+                                        {checkingDb ? (
+                                            <span className="text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded-md flex items-center gap-1 font-semibold">
+                                                <Loader2 size={12} className="animate-spin" /> Memeriksa...
+                                            </span>
+                                        ) : (
+                                            <span className="text-xs bg-rose-100 text-rose-800 font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                                                <XCircle size={13} /> Belum Terhubung
+                                            </span>
+                                        )}
+                                    </div>
+                                    
+                                    <p className="text-xs font-medium mt-1 opacity-90 leading-relaxed">
+                                        Database Neon belum terhubung atau variabel lingkungan DATABASE_URL belum disetting.
+                                    </p>
+
+                                    <div className="mt-3 p-3 bg-white/90 rounded-xl border border-amber-200 text-xs space-y-2 text-slate-800 shadow-sm">
+                                        <p className="font-bold text-amber-900 flex items-center gap-1">
+                                            <AlertCircle size={14} className="text-amber-600" />
+                                            Petunjuk Menghubungkan Database Neon:
+                                        </p>
+                                        {dbHealth?.error && (
+                                            <p className="font-mono text-[11px] bg-rose-50 text-rose-800 p-2 rounded border border-rose-200 break-all">
+                                                Detail Error: {dbHealth.error}
+                                            </p>
+                                        )}
+                                        <ol className="list-decimal list-inside space-y-1 text-slate-700 font-medium text-[11px]">
+                                            <li>Buka dashboard Neon Anda di <strong>neon.tech</strong> dan salin <strong>Connection String</strong>.</li>
+                                            <li>Buka menu <strong>Settings</strong> &gt; <strong>Secrets / Environment Variables</strong> di AI Studio.</li>
+                                            <li>Tambahkan variabel bernama <code>DATABASE_URL</code> dan tempelkan connection string tadi.</li>
+                                            <li>Klik tombol <strong>Cek Ulang Koneksi</strong> setelah menambahkan.</li>
+                                        </ol>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={runCheckDb}
+                                disabled={checkingDb}
+                                className="px-4 py-2 bg-white border border-slate-300 hover:border-slate-400 text-slate-700 hover:text-slate-900 font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-2 shrink-0 active:scale-95 disabled:opacity-50"
+                            >
+                                <RefreshCw size={14} className={checkingDb ? 'animate-spin' : ''} />
+                                Cek Ulang Koneksi
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* Section 0: LOGO UPLOAD */}
                 <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 relative overflow-hidden">
                     {isGuru && (
