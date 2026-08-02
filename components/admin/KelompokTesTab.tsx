@@ -161,7 +161,7 @@ const KelompokTesTab = ({ currentUser, students, refreshData }: { currentUser: U
             const paketToSave = !isSumatif ? selectedPaket : '';
             const finalExamType = selectedExamType === 'SUMATIF' ? selectedSumatifType : selectedExamType;
             
-            await api.assignTestGroup(
+            const res = await api.assignTestGroup(
                 Array.from(selectedUsers).map(String), 
                 selectedExam, 
                 '', 
@@ -169,10 +169,14 @@ const KelompokTesTab = ({ currentUser, students, refreshData }: { currentUser: U
                 finalExamType,
                 paketToSave
             );
-            showToast("Berhasil set ujian aktif, TP, dan jenis ujian.", "success");
-            refreshData();
-            setSelectedUsers(new Set());
-        } catch(e) { console.error(e); showToast("Gagal.", "error"); }
+            if (res.success) {
+                showToast("Berhasil set ujian aktif, TP, dan jenis ujian.", "success");
+                refreshData();
+                setSelectedUsers(new Set());
+            } else {
+                showToast("Gagal menyimpan ke database: " + (res.message || "Database Error"), "error");
+            }
+        } catch(e: any) { console.error(e); showToast("Gagal menyimpan ke database: " + (e.message || "Error"), "error"); }
         setLoading(false);
     };
 

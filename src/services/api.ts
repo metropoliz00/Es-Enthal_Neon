@@ -257,19 +257,19 @@ export const api = {
       return config['TOKEN'] || '';
   },
 
-  saveToken: async (newToken: string): Promise<{success: boolean}> => {
+  saveToken: async (newToken: string): Promise<{success: boolean, message?: string}> => {
       return await api.saveBatchConfig({ TOKEN: newToken });
   },
   
-  saveDuration: async (minutes: number): Promise<{success: boolean}> => {
+  saveDuration: async (minutes: number): Promise<{success: boolean, message?: string}> => {
       return await api.saveBatchConfig({ DURATION: minutes.toString() });
   },
 
-  saveMaxQuestions: async (amount: number): Promise<{success: boolean}> => {
+  saveMaxQuestions: async (amount: number): Promise<{success: boolean, message?: string}> => {
       return await api.saveBatchConfig({ MAX_QUESTIONS: amount.toString() });
   },
 
-  saveKKTP: async (value: number): Promise<{success: boolean}> => {
+  saveKKTP: async (value: number): Promise<{success: boolean, message?: string}> => {
       return await api.saveBatchConfig({ KKTP: value.toString() });
   },
 
@@ -288,7 +288,7 @@ export const api = {
       }
   },
 
-  saveBatchConfig: async (config: Record<string, string>): Promise<{success: boolean}> => {
+  saveBatchConfig: async (config: Record<string, string>): Promise<{success: boolean, message?: string}> => {
       try {
           const updates = Object.entries(config).map(([key, value]) => ({ key, value }));
           const res = await fetch("/api/app-config/batch", {
@@ -296,10 +296,14 @@ export const api = {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ updates })
           });
-          return { success: res.ok };
-      } catch (e) {
+          if (!res.ok) {
+              const errBody = await res.json().catch(() => ({}));
+              return { success: false, message: errBody.error || errBody.message || `Gagal menyimpan konfigurasi ke database (HTTP ${res.status})` };
+          }
+          return { success: true };
+      } catch (e: any) {
           console.error(e);
-          return { success: false };
+          return { success: false, message: "Koneksi ke database/server gagal: " + (e.message || "Network Error") };
       }
   },
 
@@ -318,7 +322,7 @@ export const api = {
       }
   },
 
-  saveUserConfig: async (username: string, config: Record<string, any>): Promise<{success: boolean}> => {
+  saveUserConfig: async (username: string, config: Record<string, any>): Promise<{success: boolean, message?: string}> => {
       try {
           const updates = Object.entries(config).map(([key, value]) => ({ username, key, value }));
           const res = await fetch("/api/user-config", {
@@ -326,10 +330,14 @@ export const api = {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ updates })
           });
-          return { success: res.ok };
-      } catch (e) {
+          if (!res.ok) {
+              const errBody = await res.json().catch(() => ({}));
+              return { success: false, message: errBody.error || errBody.message || `Gagal menyimpan user config ke database (HTTP ${res.status})` };
+          }
+          return { success: true };
+      } catch (e: any) {
           console.error(e);
-          return { success: false };
+          return { success: false, message: "Koneksi ke database/server gagal: " + (e.message || "Network Error") };
       }
   },
 
@@ -604,71 +612,91 @@ export const api = {
       }
   },
 
-  saveLearningObjective: async (data: LearningObjective): Promise<{success: boolean}> => {
+  saveLearningObjective: async (data: LearningObjective): Promise<{success: boolean, message?: string}> => {
       try {
           const res = await fetch("/api/learning-objectives", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(data)
           });
-          return { success: res.ok };
-      } catch (e) {
+          if (!res.ok) {
+              const errBody = await res.json().catch(() => ({}));
+              return { success: false, message: errBody.error || errBody.message || `Gagal menyimpan ke database (HTTP ${res.status})` };
+          }
+          return { success: true };
+      } catch (e: any) {
           console.error(e);
-          return { success: false };
+          return { success: false, message: "Koneksi ke database/server gagal: " + (e.message || "Network Error") };
       }
   },
 
-  deleteLearningObjective: async (id: string): Promise<{success: boolean}> => {
+  deleteLearningObjective: async (id: string): Promise<{success: boolean, message?: string}> => {
       try {
           const res = await fetch(`/api/learning-objectives?id=${encodeURIComponent(id)}`, {
               method: "DELETE"
           });
-          return { success: res.ok };
-      } catch (e) {
+          if (!res.ok) {
+              const errBody = await res.json().catch(() => ({}));
+              return { success: false, message: errBody.error || errBody.message || `Gagal menghapus di database (HTTP ${res.status})` };
+          }
+          return { success: true };
+      } catch (e: any) {
           console.error(e);
-          return { success: false };
+          return { success: false, message: "Koneksi ke database/server gagal: " + (e.message || "Network Error") };
       }
   },
 
-  importLearningObjectives: async (data: LearningObjective[]): Promise<{success: boolean}> => {
+  importLearningObjectives: async (data: LearningObjective[]): Promise<{success: boolean, message?: string}> => {
       try {
           const res = await fetch("/api/learning-objectives/import", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ list: data })
           });
-          return { success: res.ok };
-      } catch (e) {
+          if (!res.ok) {
+              const errBody = await res.json().catch(() => ({}));
+              return { success: false, message: errBody.error || errBody.message || `Gagal mengimpor ke database (HTTP ${res.status})` };
+          }
+          return { success: true };
+      } catch (e: any) {
           console.error(e);
-          return { success: false };
+          return { success: false, message: "Koneksi ke database/server gagal: " + (e.message || "Network Error") };
       }
   },
 
-  assignTestGroup: async (usernames: string[], examId: string, session: string, tpId: string = '', examType: string = '', activePaket: string = ''): Promise<{success: boolean}> => {
+  assignTestGroup: async (usernames: string[], examId: string, session: string, tpId: string = '', examType: string = '', activePaket: string = ''): Promise<{success: boolean, message?: string}> => {
       try {
           const res = await fetch("/api/assign-test-group", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ usernames, examId, session, tpId, examType, activePaket })
           });
-          return { success: res.ok };
-      } catch (e) {
+          if (!res.ok) {
+              const errBody = await res.json().catch(() => ({}));
+              return { success: false, message: errBody.error || errBody.message || `Gagal set kelompok tes di database (HTTP ${res.status})` };
+          }
+          return { success: true };
+      } catch (e: any) {
           console.error(e);
-          return { success: false };
+          return { success: false, message: "Koneksi ke database/server gagal: " + (e.message || "Network Error") };
       }
   },
 
-  updateUserSessions: async (updates: {username: string, session: string}[]): Promise<{success: boolean}> => {
+  updateUserSessions: async (updates: {username: string, session: string}[]): Promise<{success: boolean, message?: string}> => {
       try {
           const res = await fetch("/api/update-user-sessions", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ updates })
           });
-          return { success: res.ok };
-      } catch (e) {
+          if (!res.ok) {
+              const errBody = await res.json().catch(() => ({}));
+              return { success: false, message: errBody.error || errBody.message || `Gagal mengupdate sesi di database (HTTP ${res.status})` };
+          }
+          return { success: true };
+      } catch (e: any) {
           console.error(e);
-          return { success: false };
+          return { success: false, message: "Koneksi ke database/server gagal: " + (e.message || "Network Error") };
       }
   },
 

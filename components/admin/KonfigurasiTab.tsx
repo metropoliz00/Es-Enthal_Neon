@@ -196,7 +196,12 @@ const KonfigurasiTab = ({ currentUser }: { currentUser: User }) => {
                     'EXAM_SUBJECT_MAPPING_DB': JSON.stringify(mappingArray),
                     'SUBJECTS_DB': JSON.stringify(formData.subjectsDb)
                 };
-                await api.saveBatchConfig(globalPayload);
+                const resGlobal = await api.saveBatchConfig(globalPayload);
+                if (!resGlobal.success) {
+                    showToast("Gagal menyimpan ke database: " + (resGlobal.message || "Error"), "error");
+                    setSaving(false);
+                    return;
+                }
             }
 
             // 2. SAVE TO USER CONFIG (Personal Data)
@@ -216,7 +221,12 @@ const KonfigurasiTab = ({ currentUser }: { currentUser: User }) => {
                 userPayload['PRINCIPAL_NIP'] = formData.principalNip;
             }
 
-            await api.saveUserConfig(currentUser.username, userPayload);
+            const resUser = await api.saveUserConfig(currentUser.username, userPayload);
+            if (!resUser.success) {
+                showToast("Gagal menyimpan ke database: " + (resUser.message || "Error"), "error");
+                setSaving(false);
+                return;
+            }
             
             showToast(isGuru ? "Konfigurasi guru berhasil disimpan." : "Konfigurasi instansi berhasil disimpan.", "success");
         } catch(e) {

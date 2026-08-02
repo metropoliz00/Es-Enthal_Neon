@@ -107,11 +107,16 @@ const TujuanPembelajaranTab = () => {
         setObjectives(prev => prev.filter(o => o.id !== id));
         
         try {
-            await api.deleteLearningObjective(id);
-            showToast("Tujuan Pembelajaran berhasil dihapus", "success");
-        } catch(e) { 
+            const res = await api.deleteLearningObjective(id);
+            if (res.success) {
+                showToast("Tujuan Pembelajaran berhasil dihapus", "success");
+            } else {
+                showToast("Gagal menghapus data dari database: " + (res.message || "Error"), "error");
+                setObjectives(original);
+            }
+        } catch(e: any) { 
             console.error(e);
-            showToast("Gagal menghapus data dari database.", "error");
+            showToast("Gagal menghapus data dari database: " + (e.message || "Error"), "error");
             setObjectives(original); // Revert on error
         } 
     };
@@ -120,10 +125,15 @@ const TujuanPembelajaranTab = () => {
         e.preventDefault();
         setIsSaving(true);
         try {
-            await api.saveLearningObjective(formData);
-            await loadData();
-            setIsModalOpen(false);
-        } catch(e) { showToast("Gagal menyimpan.", "error"); } 
+            const res = await api.saveLearningObjective(formData);
+            if (res.success) {
+                await loadData();
+                setIsModalOpen(false);
+                showToast("Tujuan Pembelajaran berhasil disimpan", "success");
+            } else {
+                showToast("Gagal menyimpan ke database: " + (res.message || "Error"), "error");
+            }
+        } catch(e: any) { showToast("Gagal menyimpan: " + (e.message || "Error"), "error"); } 
         finally { setIsSaving(false); }
     };
 

@@ -37,17 +37,42 @@ const RilisTokenTab = ({ currentUser, token, duration, maxQuestions, kktp, surve
 
     const handleSaveMaxQ = async () => {
         setIsSavingQ(true);
-        try { await api.saveMaxQuestions(Number(localMaxQ)); refreshData(); showToast("Konfigurasi tersimpan.", "success"); } catch (e) { console.error(e); showToast("Gagal menyimpan.", "error"); } finally { setIsSavingQ(false); }
+        try { 
+            const res = await api.saveMaxQuestions(Number(localMaxQ)); 
+            if (res.success) {
+                refreshData(); 
+                showToast("Konfigurasi tersimpan.", "success"); 
+            } else {
+                showToast("Gagal menyimpan ke database: " + (res.message || "Error"), "error");
+            }
+        } catch (e: any) { console.error(e); showToast("Gagal menyimpan ke database: " + (e.message || "Error"), "error"); } finally { setIsSavingQ(false); }
     };
 
     const handleSaveKKTP = async () => {
         setIsSavingQ(true);
-        try { await api.saveKKTP(Number(localKKTP)); refreshData(); showToast("KKTP tersimpan.", "success"); } catch (e) { console.error(e); showToast("Gagal menyimpan KKTP.", "error"); } finally { setIsSavingQ(false); }
+        try { 
+            const res = await api.saveKKTP(Number(localKKTP)); 
+            if (res.success) {
+                refreshData(); 
+                showToast("KKTP tersimpan.", "success"); 
+            } else {
+                showToast("Gagal menyimpan KKTP ke database: " + (res.message || "Error"), "error");
+            }
+        } catch (e: any) { console.error(e); showToast("Gagal menyimpan KKTP ke database: " + (e.message || "Error"), "error"); } finally { setIsSavingQ(false); }
     };
 
     const handleUpdateToken = async () => {
         setIsSavingQ(true);
-        try { await api.saveToken(tokenInput); setIsEditingToken(false); refreshData(); showToast("Token berhasil diperbarui.", "success"); } catch (e) { showToast("Gagal menyimpan token.", "error"); } finally { setIsSavingQ(false); }
+        try { 
+            const res = await api.saveToken(tokenInput); 
+            if (res.success) {
+                setIsEditingToken(false); 
+                refreshData(); 
+                showToast("Token berhasil diperbarui.", "success"); 
+            } else {
+                showToast("Gagal menyimpan token ke database: " + (res.message || "Error"), "error");
+            }
+        } catch (e: any) { showToast("Gagal menyimpan token ke database: " + (e.message || "Error"), "error"); } finally { setIsSavingQ(false); }
     };
 
     const generateToken = () => {
@@ -61,7 +86,16 @@ const RilisTokenTab = ({ currentUser, token, duration, maxQuestions, kktp, surve
 
     const handleUpdateDuration = async () => {
         setIsSavingQ(true);
-        try { await api.saveDuration(durationInput); setIsEditingDuration(false); refreshData(); showToast("Durasi ujian disimpan.", "success"); } catch (e) { showToast("Gagal menyimpan durasi.", "error"); } finally { setIsSavingQ(false); }
+        try { 
+            const res = await api.saveDuration(durationInput); 
+            if (res.success) {
+                setIsEditingDuration(false); 
+                refreshData(); 
+                showToast("Durasi ujian disimpan.", "success"); 
+            } else {
+                showToast("Gagal menyimpan durasi ke database: " + (res.message || "Error"), "error");
+            }
+        } catch (e: any) { showToast("Gagal menyimpan durasi ke database: " + (e.message || "Error"), "error"); } finally { setIsSavingQ(false); }
     };
 
     return (
