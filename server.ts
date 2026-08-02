@@ -1,7 +1,8 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { db } from "./src/db/index.ts";
+import { db, createPool } from "./src/db/index.ts";
+import { initDbTables } from "./src/db/init.ts";
 import { 
   users, 
   exams, 
@@ -27,7 +28,33 @@ async function startServer() {
 
   app.use(express.json({ limit: "50mb" }));
 
+  // Auto initialize database tables on boot if DB configured
+  initDbTables().catch((e) => console.error("Table init error:", e));
+
   // --- API ROUTES ---
+
+  // Health & DB Connection Check Endpoint
+  app.get("/api/health", async (req, res) => {
+    const hasEnv = !!(process.env.DATABASE_URL || process.env.SQL_HOST);
+    try {
+      const pool = createPool();
+      const result = await pool.query("SELECT NOW()");
+      res.json({
+        status: "ok",
+        database: "connected",
+        hasEnv,
+        time: result.rows[0].now
+      });
+    } catch (err: any) {
+      console.error("Database connection health check failed:", err.message);
+      res.status(500).json({
+        status: "error",
+        database: "disconnected",
+        hasEnv,
+        error: err.message || "Gagal terhubung ke database Neon / PostgreSQL"
+      });
+    }
+  });
 
   // 1. Login
   app.post("/api/login", async (req, res) => {

@@ -11,22 +11,42 @@ declare global {
 export const createPool = () => {
   if (!global._postgresPool) {
     const connectionString = process.env.DATABASE_URL;
+    const host = process.env.SQL_HOST;
+
+    const isLocalhost = (str?: string) => {
+      if (!str) return true;
+      return str.includes('localhost') || str.includes('127.0.0.1');
+    };
 
     if (connectionString) {
+      const needsSsl = !isLocalhost(connectionString);
       global._postgresPool = new Pool({
         connectionString,
-        ssl: connectionString.includes('neon.tech') ? { rejectUnauthorized: false } : undefined,
+        ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
+        max: 10,
+        connectionTimeoutMillis: 15000,
+      });
+    } else if (host) {
+      const needsSsl = !isLocalhost(host);
+      global._postgresPool = new Pool({
+        host,
+        user: process.env.SQL_USER,
+        password: process.env.SQL_PASSWORD,
+        database: process.env.SQL_DB_NAME,
+        port: process.env.SQL_PORT ? Number(process.env.SQL_PORT) : 5432,
+        ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
         max: 10,
         connectionTimeoutMillis: 15000,
       });
     } else {
+      // Fallback local connection
       global._postgresPool = new Pool({
-        host: process.env.SQL_HOST,
-        user: process.env.SQL_USER,
-        password: process.env.SQL_PASSWORD,
-        database: process.env.SQL_DB_NAME,
-        max: 10,
-        connectionTimeoutMillis: 15000,
+        host: 'localhost',
+        user: 'postgres',
+        password: '',
+        database: 'postgres',
+        max: 5,
+        connectionTimeoutMillis: 5000,
       });
     }
 
@@ -43,3 +63,4 @@ const pool = createPool();
 
 // Initialize Drizzle with the pool and schema.
 export const db = drizzle(pool, { schema });
+
