@@ -8,65 +8,79 @@ declare global {
 
 export const createPool = () => {
   if (!global._postgresPool) {
-    let connectionString = process.env.DATABASE_URL?.trim();
-    let host = process.env.SQL_HOST?.trim();
+    try {
+      let connectionString = process.env.DATABASE_URL?.trim();
+      let host = process.env.SQL_HOST?.trim();
 
-    // Remove quotes if user wrapped the connection string or host in quotes
-    if (connectionString) {
-      if ((connectionString.startsWith('"') && connectionString.endsWith('"')) ||
-          (connectionString.startsWith("'") && connectionString.endsWith("'"))) {
-        connectionString = connectionString.slice(1, -1).trim();
+      // Remove surrounding quotes, spaces, angle brackets
+      if (connectionString) {
+        connectionString = connectionString.replace(/^["'<]+|["'>]+$/g, '').trim();
       }
-    }
-
-    if (host) {
-      if ((host.startsWith('"') && host.endsWith('"')) ||
-          (host.startsWith("'") && host.endsWith("'"))) {
-        host = host.slice(1, -1).trim();
+      if (host) {
+        host = host.replace(/^["'<]+|["'>]+$/g, '').trim();
       }
+
+      const isLocalhost = (str?: string) => {
+        if (!str) return true;
+        return str.includes('localhost') || str.includes('127.0.0.1');
+      };
+
+      if (connectionString) {
+        const needsSsl = !isLocalhost(connectionString);
+        global._postgresPool = new Pool({
+          connectionString,
+          ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
+          max: 2,
+          idleTimeoutMillis: 10000,
+          connectionTimeoutMillis: 5000,
+        });
+      } else if (host) {
+        const needsSsl = !isLocalhost(host);
+        global._postgresPool = new Pool({
+          host,
+          user: process.env.SQL_USER,
+          password: process.env.SQL_PASSWORD,
+          database: process.env.SQL_DB_NAME,
+          port: process.env.SQL_PORT ? Number(process.env.SQL_PORT) : 5432,
+          ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
+          max: 2,
+          idleTimeoutMillis: 10000,
+          connectionTimeoutMillis: 5000,
+        });
+      } else {
+        // Safe mock pool if env missing - returns error on query without TCP socket attempt
+        const dummyPool = {
+          query: async () => {
+            throw new Error("DATABASE_URL belum diisi pada Environment Variables Vercel.");
+          },
+          on: () => {},
+          connect: async () => {
+            throw new Error("DATABASE_URL belum diisi pada Environment Variables Vercel.");
+          },
+          end: async () => {}
+        } as unknown as Pool;
+        
+        global._postgresPool = dummyPool;
+      }
+
+      if (global._postgresPool && typeof global._postgresPool.on === 'function') {
+        global._postgresPool.on('error', (err: any) => {
+          console.error('Unexpected error on idle SQL pool client:', err?.message || err);
+        });
+      }
+    } catch (err: any) {
+      console.error("Failed to initialize PostgreSQL pool:", err?.message || err);
+      global._postgresPool = {
+        query: async () => {
+          throw new Error("Gagal menginisialisasi Pool Database: " + (err?.message || "Format DATABASE_URL salah"));
+        },
+        on: () => {},
+        connect: async () => {
+          throw new Error("Gagal menginisialisasi Pool Database");
+        },
+        end: async () => {}
+      } as unknown as Pool;
     }
-
-    const isLocalhost = (str?: string) => {
-      if (!str) return true;
-      return str.includes('localhost') || str.includes('127.0.0.1');
-    };
-
-    if (connectionString) {
-      const needsSsl = !isLocalhost(connectionString);
-      global._postgresPool = new Pool({
-        connectionString,
-        ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
-        max: 3,
-        idleTimeoutMillis: 10000,
-        connectionTimeoutMillis: 8000,
-      });
-    } else if (host) {
-      const needsSsl = !isLocalhost(host);
-      global._postgresPool = new Pool({
-        host,
-        user: process.env.SQL_USER,
-        password: process.env.SQL_PASSWORD,
-        database: process.env.SQL_DB_NAME,
-        port: process.env.SQL_PORT ? Number(process.env.SQL_PORT) : 5432,
-        ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
-        max: 3,
-        idleTimeoutMillis: 10000,
-        connectionTimeoutMillis: 8000,
-      });
-    } else {
-      // Dummy pool if no env set - fail quickly if queried
-      global._postgresPool = new Pool({
-        host: '127.0.0.1',
-        port: 5432,
-        max: 1,
-        connectionTimeoutMillis: 1000,
-      });
-    }
-
-    // Prevent unhandled pool-level errors from crashing the application or serverless process
-    global._postgresPool.on('error', (err) => {
-      console.error('Unexpected error on idle SQL pool client:', err?.message || err);
-    });
   }
   return global._postgresPool;
 };

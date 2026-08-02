@@ -28,16 +28,17 @@ app.use(express.json({ limit: "50mb" }));
 let dbTablesInitialized = false;
 let dbInitPromise: Promise<any> | null = null;
 
+// Ensure DB tables lazily when needed without dangling un-awaited background promises in Express middleware
 async function ensureDbTables() {
   let hasEnv = false;
   if (process.env.DATABASE_URL) {
-    const url = process.env.DATABASE_URL.trim();
+    const url = process.env.DATABASE_URL.trim().replace(/^["'<]+|["'>]+$/g, '');
     if (url && url !== '""' && url !== "''") {
       hasEnv = true;
     }
   }
   if (process.env.SQL_HOST) {
-    const host = process.env.SQL_HOST.trim();
+    const host = process.env.SQL_HOST.trim().replace(/^["'<]+|["'>]+$/g, '');
     if (host && host !== '""' && host !== "''") {
       hasEnv = true;
     }
@@ -56,26 +57,34 @@ async function ensureDbTables() {
       })
       .catch((e) => {
         console.error("Lazy table init failed:", e);
-        dbInitPromise = null; // reset to allow retry on next request
+        dbInitPromise = null;
       });
   }
-  await dbInitPromise;
+  try {
+    await dbInitPromise;
+  } catch (e) {
+    // Ignore error to avoid blocking execution
+  }
 }
 
-// Trigger DB table check asynchronously without delaying response
+// Global safety handler middleware for DB auto-check
 app.use((req, res, next) => {
-  ensureDbTables().catch(() => {});
+  // Only trigger table check if env exists and not initialized yet, without floating unhandled rejections
+  if (!dbTablesInitialized && (process.env.DATABASE_URL || process.env.SQL_HOST)) {
+    ensureDbTables().catch((err) => {
+      console.warn("Auto-table init warning:", err?.message || err);
+    });
+  }
   next();
 });
 
 // --- API ROUTES ---
 
 // Health & DB Connection Check Endpoint
-app.get(["/api/health", "/health"], async (req, res) => {
+app.get(["/api/health", "/health", "/api/health/"], async (req, res) => {
   let connectionString = process.env.DATABASE_URL?.trim() || "";
-  if ((connectionString.startsWith('"') && connectionString.endsWith('"')) ||
-      (connectionString.startsWith("'") && connectionString.endsWith("'"))) {
-    connectionString = connectionString.slice(1, -1).trim();
+  if (connectionString) {
+    connectionString = connectionString.replace(/^["'<]+|["'>]+$/g, '').trim();
   }
 
   const hasEnv = !!(connectionString || process.env.SQL_HOST?.trim());
@@ -92,17 +101,17 @@ app.get(["/api/health", "/health"], async (req, res) => {
 
   try {
     const pool = createPool();
-    // 5-second query timeout safeguard so health checks never hang
+    // 4-second query timeout safeguard so health checks never hang or time out in Vercel
     const result = await Promise.race([
       pool.query("SELECT NOW()"),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Koneksi database timeout (5 detik). Pastikan database Neon Anda aktif.")), 5000))
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Koneksi database timeout (4 detik). Pastikan database Neon Anda aktif.")), 4000))
     ]) as any;
 
-    return res.json({
+    return res.status(200).json({
       status: "ok",
       database: "connected",
       hasEnv: true,
-      time: result.rows?.[0]?.now
+      time: result.rows?.[0]?.now || new Date().toISOString()
     });
   } catch (err: any) {
     console.error("Database connection health check failed:", err?.message || err);
