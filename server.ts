@@ -119,22 +119,32 @@ async function startServer() {
     }
   });
 
-  // 6. Batch Save App Config
-  app.post("/api/app-config/batch", async (req, res) => {
-    const { updates } = req.body; // array of { key, value }
+  // 6. Batch / Single Save App Config
+  const saveAppConfigHandler = async (req: express.Request, res: express.Response) => {
+    let updates = req.body.updates;
+    if (!updates && req.body.key) {
+      updates = [{ key: req.body.key, value: req.body.value }];
+    }
+    if (!Array.isArray(updates)) {
+      updates = [];
+    }
     try {
       for (const item of updates) {
-        await db.insert(appConfig).values(item).onConflictDoUpdate({
+        if (!item || !item.key) continue;
+        await db.insert(appConfig).values({ key: item.key, value: item.value || "" }).onConflictDoUpdate({
           target: appConfig.key,
-          set: { value: item.value }
+          set: { value: item.value || "" }
         });
       }
       res.json({ success: true });
     } catch (err: any) {
-      console.error("Batch config save failed:", err);
+      console.error("Config save failed:", err);
       res.status(500).json({ error: err.message });
     }
-  });
+  };
+
+  app.post("/api/app-config", saveAppConfigHandler);
+  app.post("/api/app-config/batch", saveAppConfigHandler);
 
   // 7. Get User Config
   app.get("/api/user-config", async (req, res) => {
