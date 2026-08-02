@@ -24,13 +24,37 @@ export const app = express();
 
 app.use(express.json({ limit: "50mb" }));
 
-// Auto initialize database tables on boot if DB configured
-initDbTables().catch((e) => console.error("Table init error:", e));
+// Lazy DB Table Initializer (Prevents lambda cold-start blocking)
+let dbTablesInitialized = false;
+let dbInitPromise: Promise<any> | null = null;
+
+async function ensureDbTables() {
+  const hasEnv = !!(process.env.DATABASE_URL || process.env.SQL_HOST);
+  if (!hasEnv || dbTablesInitialized) return;
+
+  if (!dbInitPromise) {
+    dbInitPromise = initDbTables()
+      .then(() => {
+        dbTablesInitialized = true;
+      })
+      .catch((e) => {
+        console.error("Lazy table init failed:", e);
+        dbInitPromise = null; // reset to allow retry on next request
+      });
+  }
+  await dbInitPromise;
+}
+
+// Ensure DB tables on every request asynchronously in background
+app.use(async (req, res, next) => {
+  ensureDbTables().catch(() => {});
+  next();
+});
 
 // --- API ROUTES ---
 
 // Health & DB Connection Check Endpoint
-app.get("/api/health", async (req, res) => {
+app.get(["/api/health", "/health"], async (req, res) => {
   const hasEnv = !!(process.env.DATABASE_URL || process.env.SQL_HOST);
   try {
     const pool = createPool();
@@ -825,3 +849,16 @@ app.post("/api/lcc-history", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// Global Express Error Handling Middleware for Serverless
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error("Global Express Error Handler caught:", err);
+  if (!res.headersSent) {
+    res.status(500).json({
+      status: "error",
+      error: err?.message || "Internal Server Error",
+      message: "Terjadi kesalahan internal server."
+    });
+  }
+});
+

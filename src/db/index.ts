@@ -2,12 +2,10 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import * as schema from './schema';
 
-// Add global connection pool caching to persist across hot-reloads
 declare global {
   var _postgresPool: Pool | undefined;
 }
 
-// Function to create or retrieve the connection pool.
 export const createPool = () => {
   if (!global._postgresPool) {
     const connectionString = process.env.DATABASE_URL;
@@ -23,8 +21,9 @@ export const createPool = () => {
       global._postgresPool = new Pool({
         connectionString,
         ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
-        max: 10,
-        connectionTimeoutMillis: 15000,
+        max: 5,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
       });
     } else if (host) {
       const needsSsl = !isLocalhost(host);
@@ -35,18 +34,17 @@ export const createPool = () => {
         database: process.env.SQL_DB_NAME,
         port: process.env.SQL_PORT ? Number(process.env.SQL_PORT) : 5432,
         ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
-        max: 10,
-        connectionTimeoutMillis: 15000,
+        max: 5,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
       });
     } else {
-      // Fallback local connection
+      // Dummy pool if no env set - fail quickly if queried
       global._postgresPool = new Pool({
-        host: 'localhost',
-        user: 'postgres',
-        password: '',
-        database: 'postgres',
-        max: 5,
-        connectionTimeoutMillis: 5000,
+        host: '127.0.0.1',
+        port: 5432,
+        max: 1,
+        connectionTimeoutMillis: 1000,
       });
     }
 
@@ -63,4 +61,5 @@ const pool = createPool();
 
 // Initialize Drizzle with the pool and schema.
 export const db = drizzle(pool, { schema });
+
 
