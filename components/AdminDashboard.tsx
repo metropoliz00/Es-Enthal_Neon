@@ -54,6 +54,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onSwitc
       setOpenGroups(prev => ({ ...prev, [group]: !prev[group] }));
   };
   
+  const isRestrictedRole = (role: string) => ['Operator Kecamatan', 'Gugus', 'Juri', 'juri'].includes(role);
+  
   const handleTabChange = (tab: TabType) => { setActiveTab(tab); localStorage.setItem('cbt_admin_tab', tab); setIsSidebarOpen(false); };
   
   // Update Document Title based on Active Tab
@@ -157,7 +159,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onSwitc
              </button>
              
              {/* GROUP: UJIAN */}
-             {currentUserState.role !== 'Operator Kecamatan' && currentUserState.role !== 'Juri' && currentUserState.role !== 'juri' && (
+             {!isRestrictedRole(currentUserState.role) && (
                  <>
                      <GroupHeader id="ujian" label="Ujian" />
                      {(openGroups['ujian'] || isCollapsed) && (
@@ -195,7 +197,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onSwitc
              )}
              
              {/* GROUP: MANAJEMEN USER */}
-             {(currentUserState.role === 'admin' || currentUserState.role === 'Guru' || currentUserState.role === 'Juri' || currentUserState.role === 'juri' || currentUserState.role === 'Operator Kecamatan' || currentUserState.role === 'Proktor Sekolah') && (
+             {(currentUserState.role === 'admin' || currentUserState.role === 'Guru' || currentUserState.role === 'Proktor Sekolah') && (
                  <>
                     <GroupHeader id="user" label="Manajemen User" />
                     {(openGroups['user'] || isCollapsed) && (
@@ -253,8 +255,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onSwitc
              )}
              
              {/* GROUP: CETAK */}
-             <GroupHeader id="cetak" label="Cetak" />
-             {(openGroups['cetak'] || isCollapsed) && (
+             {!isRestrictedRole(currentUserState.role) && <GroupHeader id="cetak" label="Cetak" />}
+             {(openGroups['cetak'] || isCollapsed) && !isRestrictedRole(currentUserState.role) && (
                  <div className={!isCollapsed ? "pl-2 border-l border-slate-200 ml-3 space-y-1" : "space-y-1"}>
                     <button onClick={() => handleTabChange('cetak_kartu')} className={navButtonClass('cetak_kartu')} title="Kartu Peserta">
                         <CreditCard size={22} className={isCollapsed ? "" : "shrink-0 mr-3"}/> {!isCollapsed && <span>Kartu Peserta</span>}
