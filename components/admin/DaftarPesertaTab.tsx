@@ -240,6 +240,21 @@ const DaftarPesertaTab = ({ currentUser, onDataChange, mode = 'siswa', onSwitchU
         }
     };
     
+    const getNextTeamName = (existingUsers: any[]) => {
+        const teamNames = existingUsers
+            .filter(u => isBereguExamType(u.exam_type))
+            .map(u => (u.fullname || '').split('|')[0].trim());
+        
+        for (let i = 0; i < 26; i++) {
+            const char = String.fromCharCode(65 + i);
+            const candidate = `Regu ${char}`;
+            if (!teamNames.includes(candidate)) {
+                return candidate;
+            }
+        }
+        return "Regu A";
+    };
+
     const handleAdd = () => { 
         setFormData({ 
             id: '', 
@@ -256,7 +271,7 @@ const DaftarPesertaTab = ({ currentUser, onDataChange, mode = 'siswa', onSwitchU
             photo_url: '',
             exam_type: currentUser.role === 'Operator Kecamatan' ? 'LCC' : currentUser.role === 'Proktor Sekolah' ? 'OSN' : ''
         }); 
-        setBereguTeamName('');
+        setBereguTeamName(getNextTeamName(users));
         setBereguMember1('');
         setBereguMember2('');
         setBereguMember3('');

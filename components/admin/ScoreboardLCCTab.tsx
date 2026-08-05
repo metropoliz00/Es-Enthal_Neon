@@ -20,6 +20,7 @@ export interface LccTeam {
     id: string;
     name: string;
     school: string;
+    gugus?: string;
     score: number;
     color: string;
     logo?: string;
@@ -170,6 +171,11 @@ export const ScoreboardLCCTab: React.FC<ScoreboardLCCTabProps> = ({ forceScorebo
     const [history, setHistory] = useState<ScoreHistoryLog[]>([]);
     const [questions, setQuestions] = useState<LccQuestion[]>([]);
     const [isInitialLoaded, setIsInitialLoaded] = useState<boolean>(false);
+
+    const [tambahSkorStr, setTambahSkorStr] = useState((config.tambahSkorSteps || [5, 10, 20, 25, 50, 100]).join(', '));
+    const [kurangSkorStr, setKurangSkorStr] = useState((config.kurangSkorSteps || [5, 10, 20, 50, 100]).join(', '));
+    const [penguranganSalahStr, setPenguranganSalahStr] = useState(String(config.penguranganSalah || 0));
+    const [bonusPointStr, setBonusPointStr] = useState(String(config.bonusPoint || 0));
 
     const availableGugus = Array.from(new Set(
         teams.map(getTeamGugus).filter(Boolean)
@@ -645,6 +651,7 @@ export const ScoreboardLCCTab: React.FC<ScoreboardLCCTabProps> = ({ forceScorebo
                         id: `team_${regu.username}`,
                         name: cleanTeamName,
                         school: schoolName,
+                        gugus: regu.gugus || regu.kelas_id || '',
                         score: Math.round(score),
                         color: colors[teamIndex % colors.length],
                         logo: regu.photo_url || '',
@@ -682,6 +689,7 @@ export const ScoreboardLCCTab: React.FC<ScoreboardLCCTabProps> = ({ forceScorebo
                             id: teamId,
                             name: reguName,
                             school: schoolName,
+                            gugus: batch[0].gugus || schoolName,
                             score: Math.round(totalScore),
                             color: colors[teamIndex % colors.length],
                             logo: '',
@@ -2940,8 +2948,9 @@ export const ScoreboardLCCTab: React.FC<ScoreboardLCCTabProps> = ({ forceScorebo
                                     <input 
                                         type="number" 
                                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-rose-600 outline-none" 
-                                        value={config.penguranganSalah}
-                                        onChange={e => setConfig({...config, penguranganSalah: parseInt(e.target.value) || 0})}
+                                        value={penguranganSalahStr}
+                                        onChange={e => setPenguranganSalahStr(e.target.value)}
+                                        onBlur={e => setConfig({...config, penguranganSalah: parseInt(e.target.value) || 0})}
                                     />
                                 </div>
                                 <div>
@@ -2949,8 +2958,9 @@ export const ScoreboardLCCTab: React.FC<ScoreboardLCCTabProps> = ({ forceScorebo
                                     <input 
                                         type="number" 
                                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-emerald-600 outline-none" 
-                                        value={config.bonusPoint}
-                                        onChange={e => setConfig({...config, bonusPoint: parseInt(e.target.value) || 0})}
+                                        value={bonusPointStr}
+                                        onChange={e => setBonusPointStr(e.target.value)}
+                                        onBlur={e => setConfig({...config, bonusPoint: parseInt(e.target.value) || 0})}
                                     />
                                 </div>
                             </div>
@@ -2962,9 +2972,10 @@ export const ScoreboardLCCTab: React.FC<ScoreboardLCCTabProps> = ({ forceScorebo
                                         type="text" 
                                         placeholder="Tombol Tambah Skor Cepat"
                                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-indigo-500" 
-                                        value={(config.tambahSkorSteps || [5, 10, 20, 25, 50, 100]).join(', ')}
-                                        onChange={e => {
-                                            const arr = e.target.value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+                                        value={tambahSkorStr}
+                                        onChange={e => setTambahSkorStr(e.target.value)}
+                                        onBlur={e => {
+                                            const arr = e.target.value.split(/[, ]+/).map(s => parseInt(s.trim())).filter(n => !isNaN(n));
                                             setConfig({ ...config, tambahSkorSteps: arr });
                                         }}
                                     />
@@ -2977,9 +2988,10 @@ export const ScoreboardLCCTab: React.FC<ScoreboardLCCTabProps> = ({ forceScorebo
                                         type="text" 
                                         placeholder="Tombol Kurang Skor Cepat"
                                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-indigo-500" 
-                                        value={(config.kurangSkorSteps || [5, 10, 20, 50, 100]).join(', ')}
-                                        onChange={e => {
-                                            const arr = e.target.value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+                                        value={kurangSkorStr}
+                                        onChange={e => setKurangSkorStr(e.target.value)}
+                                        onBlur={e => {
+                                            const arr = e.target.value.split(/[, ]+/).map(s => parseInt(s.trim())).filter(n => !isNaN(n));
                                             setConfig({ ...config, kurangSkorSteps: arr });
                                         }}
                                     />
@@ -3374,7 +3386,10 @@ export const ScoreboardLCCTab: React.FC<ScoreboardLCCTabProps> = ({ forceScorebo
                                                 />
                                                 <div>
                                                     <TeamMemberBadge rawName={c.name} members={c.members} theme="indigo" size="sm" align="left" customColor={c.color} />
-                                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-600 border border-slate-200 mt-1 inline-block">{c.school}</span>
+                                                    <div className="flex gap-2 mt-1">
+                                                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-600 border border-slate-200">{c.school}</span>
+                                                        {c.gugus && <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-100 text-indigo-700 border border-indigo-200">{c.gugus}</span>}
+                                                    </div>
                                                 </div>
                                             </div>
                                             <div className="text-right shrink-0">
