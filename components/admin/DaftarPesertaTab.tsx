@@ -344,7 +344,10 @@ const DaftarPesertaTab = ({ currentUser, onDataChange, mode = 'siswa', onSwitchU
         let res = users; 
         if (filterRole !== 'all') res = res.filter(u => u.role === filterRole); 
         if (filterSchool !== 'all') res = res.filter(u => u.school === filterSchool); 
-        if (filterKelas !== 'all') res = res.filter(u => u.kelas === filterKelas);
+        if (filterKelas && filterKelas.toLowerCase() !== 'all') {
+            const lower = filterKelas.toLowerCase();
+            res = res.filter(u => u.kelas && u.kelas.toLowerCase().includes(lower));
+        }
         if (searchTerm) { 
             const lower = searchTerm.toLowerCase(); 
             res = res.filter(u => 
@@ -517,8 +520,8 @@ const DaftarPesertaTab = ({ currentUser, onDataChange, mode = 'siswa', onSwitchU
                 {currentUser.role === 'admin' && (
                     <>
                     <select className="p-3 border-2 border-slate-100 rounded-xl text-sm font-bold text-slate-500 outline-none focus:border-indigo-500 bg-white cursor-pointer hover:border-slate-300 appearance-none" value={filterSchool} onChange={e => setFilterSchool(e.target.value)}><option value="all">Semua Sekolah</option>{uniqueSchools.map(s => <option key={s} value={s}>{s}</option>)}</select>
-                    {/* Unified Filter Kelas for both modes if necessary */}
-                    <select className="p-3 border-2 border-slate-100 rounded-xl text-sm font-bold text-slate-500 outline-none focus:border-indigo-500 bg-white cursor-pointer hover:border-slate-300 appearance-none" value={filterKelas} onChange={e => setFilterKelas(e.target.value)}><option value="all">Semua Kelas</option>{uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}</select>
+                    {/* Unified Filter Kelas/Gugus for both modes */}
+                    <input type="text" placeholder="Filter Kelas/Gugus (ketik 'all' untuk semua)" className="w-full md:w-auto p-3 border-2 border-slate-100 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 bg-white" value={filterKelas} onChange={e => setFilterKelas(e.target.value)} />
                     </>
                 )}
                 <button onClick={() => setSortOrder(p => p === 'asc' ? 'desc' : 'asc')} className="p-3 bg-white border-2 border-slate-100 rounded-xl text-slate-500 hover:text-indigo-600 hover:border-indigo-100 transition shadow-sm w-[50px] flex items-center justify-center" title={sortOrder === 'asc' ? "Urutkan Z-A" : "Urutkan A-Z"}>
@@ -718,9 +721,9 @@ const DaftarPesertaTab = ({ currentUser, onDataChange, mode = 'siswa', onSwitchU
                                 {/* Unified Class Selector / Gugus for BOTH Student and Staff */}
                                 <div>
                                     <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
-                                        {mode === 'siswa' && isBereguExamType(formData.exam_type) ? 'Gugus' : (mode === 'siswa' ? 'Kelas Siswa' : 'Kelas Ampuan (Kosongkan jika semua kelas)')}
+                                        {( (mode === 'siswa' && isBereguExamType(formData.exam_type)) || (['Operator Kecamatan', 'Gugus', 'Juri'].includes(formData.role) && formData.exam_type === 'LCC') ) ? 'Nama Gugus' : (mode === 'siswa' ? 'Kelas Siswa' : 'Kelas Ampuan (Kosongkan jika semua kelas)')}
                                     </label>
-                                    {mode === 'siswa' && isBereguExamType(formData.exam_type) ? (
+                                    {( (mode === 'siswa' && isBereguExamType(formData.exam_type)) || (['Operator Kecamatan', 'Gugus', 'Juri'].includes(formData.role) && formData.exam_type === 'LCC') ) ? (
                                         <input 
                                             type="text" 
                                             className="w-full p-3 bg-white border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500" 
