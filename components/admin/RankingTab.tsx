@@ -1,14 +1,14 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Award, FileText, Loader2, BookOpen, Filter, Trophy, Users, Star } from 'lucide-react';
+import { Award, FileText, Loader2, BookOpen, Filter, Trophy, Star, Layers, Sparkles } from 'lucide-react';
 import { api } from '../../src/services/api';
-import { exportToExcel, getPredicateBadge, TeamMemberBadge, syncTeamsWithParticipants, getSchoolOnly } from '../../utils/adminHelpers';
-import { motion } from 'motion/react';
+import { exportToExcel, getPredicateBadge, TeamMemberBadge, syncTeamsWithParticipants, getSchoolOnly, getExamTypes } from '../../utils/adminHelpers';
 
 const RankingTab = ({ students }: { students: any[] }) => {
-    const [subTab, setSubTab] = useState<'cbt' | 'lcc'>('cbt');
+    const [selectedExamType, setSelectedExamType] = useState<string>('all');
     const [data, setData] = useState<any[]>([]); // CBT recap data
     const [lccTeams, setLccTeams] = useState<any[]>([]); // LCC Teams data
+    const [globalConfig, setGlobalConfig] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(false);
     const [filterKecamatan, setFilterKecamatan] = useState('all');
     const [filterSchool, setFilterSchool] = useState('all');
@@ -18,9 +18,72 @@ const RankingTab = ({ students }: { students: any[] }) => {
     // User Map for quick lookup of profile data (Kecamatan, etc)
     const userMap = useMemo(() => {
         const map: Record<string, any> = {};
-        students.forEach(s => map[s.username] = s);
+        students.forEach(s => {
+            if (s.username) {
+                map[String(s.username).toLowerCase().trim()] = s;
+            }
+        });
         return map;
     }, [students]);
+
+    useEffect(() => {
+        setLoading(true);
+        Promise.all([
+            api.getRecap(),
+            api.getLccTeams(),
+            api.getAppConfig()
+        ]).then(([recapRes, lccRes, configRes]) => { 
+            setData(recapRes || []);
+            setLccTeams(lccRes || []);
+            setGlobalConfig(configRes || {});
+        })
+        .catch(console.error)
+        .finally(() => setLoading(false));
+    }, []);
+
+    // Extract dynamic Exam Types list
+    const examTypeOptions = useMemo(() => {
+        const configuredTypes = getExamTypes(globalConfig); // Array of { id, label }
+        
+        // Base list with default 'all'
+        const result: { id: string; label: string }[] = [
+            { id: 'all', label: 'Semua Ujian (CBT Umum)' }
+        ];
+
+        const addedIds = new Set<string>(['all']);
+
+        // Add configured types
+        configuredTypes.forEach(t => {
+            const key = t.id.toUpperCase();
+            if (!addedIds.has(key)) {
+                addedIds.add(key);
+                if (t.id === 'LCC') {
+                    result.push({ id: 'LCC', label: 'LCC - Lomba Cerdas Cermat (Babak I & II)' });
+                } else {
+                    result.push({ id: t.id, label: t.label || t.id });
+                }
+            }
+        });
+
+        // Gather any extra jenis_ujian from recap data
+        data.forEach(d => {
+            const j = (d.jenis_ujian || d.exams?.jenis_ujian || '').trim();
+            if (j) {
+                const key = j.toUpperCase();
+                if (!addedIds.has(key)) {
+                    addedIds.add(key);
+                    result.push({ id: j, label: j });
+                }
+            }
+        });
+
+        return result;
+    }, [globalConfig, data]);
+
+    const isLccMode = useMemo(() => {
+        const lower = selectedExamType.toLowerCase();
+        return lower === 'lcc' || lower.includes('cerdas cermat');
+    }, [selectedExamType]);
     
     // Extract Unique Filter Options
     const uniqueKecamatans = useMemo(() => {
@@ -30,7 +93,6 @@ const RankingTab = ({ students }: { students: any[] }) => {
     
     const uniqueSchools = useMemo(() => {
         const schools = new Set(data.map(d => d.sekolah).filter(Boolean));
-        // Also add schools from LCC teams
         lccTeams.forEach(t => {
             if (t.school) schools.add(t.school);
         });
@@ -44,58 +106,56 @@ const RankingTab = ({ students }: { students: any[] }) => {
         );
     }, [students]);
 
-    // Extract Unique Subjects from Results (Dynamic Sync)
+    // Extract Unique Subjects from Results
     const uniqueSubjects = useMemo(() => {
         const subjects = new Set(data.map(d => d.mapel).filter(Boolean));
         return Array.from(subjects).sort();
     }, [data]);
     
-    useEffect(() => {
-        setLoading(true);
-        Promise.all([
-            api.getRecap(),
-            api.getLccTeams()
-        ]).then(([recapRes, lccRes]) => { 
-            setData(recapRes);
-            setLccTeams(lccRes);
-        })
-        .catch(console.error)
-        .finally(() => setLoading(false));
-    }, []);
-    
-    // 1. FILTER & SORT CBT (BABAK I) DATA
+    // 1. FILTER & SORT CBT DATA
     const filteredData = useMemo(() => {
         let res = data;
 
+        // Filter by selectedExamType if specific and not LCC
+        if (selectedExamType !== 'all' && !isLccMode) {
+            const targetType = selectedExamType.toLowerCase().trim();
+            res = res.filter(d => {
+                const j = (d.jenis_ujian || d.exams?.jenis_ujian || '').toLowerCase().trim();
+                const m = (d.mapel || '').toLowerCase().trim();
+                return j.includes(targetType) || targetType.includes(j) || m.includes(targetType);
+            });
+        }
+
         // Filter by Subject
         if (filterSubject) {
-            res = res.filter(d => d.mapel === filterSubject);
+            res = res.filter(d => (d.mapel || '').toLowerCase() === filterSubject.toLowerCase());
         }
 
         // Filter by School, Kecamatan, & Class
         res = res.filter(d => {
-            const userProfile = userMap[d.username];
-            const userKecamatan = userProfile?.kecamatan || '-';
-            const userKelas = userProfile?.kelas || '-';
+            const uname = String(d.username || d.user_id || '').toLowerCase().trim();
+            const userProfile = userMap[uname];
+            const userKecamatan = userProfile?.kecamatan || d.kecamatan || '-';
+            const userKelas = userProfile?.kelas || d.kelas || '-';
+            const userSchool = d.sekolah || userProfile?.school || '-';
             
             const kecMatch = filterKecamatan === 'all' || (userKecamatan && userKecamatan.toLowerCase() === filterKecamatan.toLowerCase());
-            const schoolMatch = filterSchool === 'all' || (d.sekolah && d.sekolah.toLowerCase() === filterSchool.toLowerCase());
-            const classMatch = filterClass === 'all' || (userKelas === filterClass);
+            const schoolMatch = filterSchool === 'all' || (userSchool && userSchool.toLowerCase() === filterSchool.toLowerCase());
+            const classMatch = filterClass === 'all' || (String(userKelas) === String(filterClass));
             
             return kecMatch && schoolMatch && classMatch;
         });
 
         // Sort by Score (Desc)
-        return res.sort((a, b) => {
-            const scoreA = parseFloat(a.nilai) || 0;
-            const scoreB = parseFloat(b.nilai) || 0;
-            return scoreB - scoreA; // Highest to Lowest
+        return [...res].sort((a, b) => {
+            const scoreA = parseFloat(a.nilai) || parseFloat(a.score) || 0;
+            const scoreB = parseFloat(b.nilai) || parseFloat(b.score) || 0;
+            return scoreB - scoreA;
         });
-    }, [data, filterKecamatan, filterSchool, filterClass, filterSubject, userMap]);
+    }, [data, selectedExamType, isLccMode, filterSubject, filterKecamatan, filterSchool, filterClass, userMap]);
 
-    // 2. AGGREGATE & RANK LCC (BABAK I + BABAK II) DATA
+    // 2. AGGREGATE & RANK LCC DATA
     const lccRankingData = useMemo(() => {
-        // Build maps of student name and username to their CBT score
         const studentCbtScores: Record<string, number> = {};
         const studentNameScores: Record<string, number> = {};
         
@@ -108,7 +168,6 @@ const RankingTab = ({ students }: { students: any[] }) => {
                 }
             }
             
-            // Match by student name
             const studentInfo = students.find(s => (s.username || '').toLowerCase().trim() === uname);
             if (studentInfo) {
                 const fullName = (studentInfo.nama_lengkap || studentInfo.fullname || '').toLowerCase().trim();
@@ -120,12 +179,11 @@ const RankingTab = ({ students }: { students: any[] }) => {
             }
         });
 
-        // Also build fallback matching directly from students list names
         const nameToUsername: Record<string, string> = {};
         students.forEach(s => {
             const fullName = (s.nama_lengkap || s.fullname || '').toLowerCase().trim();
-            if (fullName) {
-                nameToUsername[fullName] = s.username.toLowerCase().trim();
+            if (fullName && s.username) {
+                nameToUsername[fullName] = String(s.username).toLowerCase().trim();
             }
         });
 
@@ -135,7 +193,6 @@ const RankingTab = ({ students }: { students: any[] }) => {
             let babak1Score = 0;
             const babak2Score = parseFloat(team.score) || 0;
             
-            // Match using members array (sum of CBT scores of its members)
             if (team.members && Array.isArray(team.members) && team.members.length > 0) {
                 team.members.forEach((member: string) => {
                     const cleanMember = String(member).toLowerCase().trim();
@@ -152,7 +209,6 @@ const RankingTab = ({ students }: { students: any[] }) => {
                 });
             }
 
-            // Fallback: Check if the team.id represents a student username
             const cleanTeamId = String(team.id).toLowerCase().replace(/^team_/, '').trim();
             if (babak1Score === 0) {
                 if (studentCbtScores[cleanTeamId] !== undefined) {
@@ -162,7 +218,6 @@ const RankingTab = ({ students }: { students: any[] }) => {
                 }
             }
 
-            // Last fallback: Check if the team name matches a student name
             if (babak1Score === 0) {
                 const cleanTeamName = String(team.name).toLowerCase().trim();
                 if (studentNameScores[cleanTeamName] !== undefined) {
@@ -185,20 +240,16 @@ const RankingTab = ({ students }: { students: any[] }) => {
             };
         });
 
-        // Sort by total score (Desc)
         return computed.sort((a, b) => b.totalScore - a.totalScore);
     }, [data, lccTeams, students]);
 
     // Apply Filters to LCC Ranking
     const filteredLccData = useMemo(() => {
         return lccRankingData.filter(team => {
-            // Filter by School
             const schoolMatch = filterSchool === 'all' || (team.school && team.school.toLowerCase() === filterSchool.toLowerCase());
             
-            // Filter by Kecamatan
             let kecMatch = filterKecamatan === 'all';
             if (filterKecamatan !== 'all') {
-                // Find school or members to detect kecamatan
                 const matchKec = students.some(s => 
                     s.kecamatan && s.kecamatan.toLowerCase() === filterKecamatan.toLowerCase() &&
                     ((team.school && s.school === team.school) || (team.members && team.members.includes(s.nama_lengkap || s.fullname)))
@@ -210,72 +261,88 @@ const RankingTab = ({ students }: { students: any[] }) => {
         });
     }, [lccRankingData, filterSchool, filterKecamatan, students]);
 
-    const handleExportLcc = () => {
-        const exportRows = filteredLccData.map((d, i) => ({
-            'Peringkat': i + 1,
-            'Nama Regu': d.name,
-            'Asal Sekolah': d.school || '-',
-            'Anggota Regu': d.members ? d.members.join(', ') : '',
-            'Nilai BABAK I (CBT)': d.babak1Score,
-            'Nilai BABAK II (LCC)': d.babak2Score,
-            'Jumlah Nilai': d.totalScore
-        }));
-        exportToExcel(exportRows, `Ranking_LCC_Gabungan_Babak_1_dan_2`);
+    const handleExport = () => {
+        if (isLccMode) {
+            const exportRows = filteredLccData.map((d, i) => ({
+                'Peringkat': i + 1,
+                'Nama Regu': d.name,
+                'Asal Sekolah': d.school || '-',
+                'Anggota Regu': d.members ? d.members.join(', ') : '',
+                'Nilai BABAK I (CBT)': d.babak1Score,
+                'Nilai BABAK II (LCC)': d.babak2Score,
+                'Jumlah Nilai': d.totalScore
+            }));
+            exportToExcel(exportRows, `Ranking_LCC_Gabungan_Babak_1_dan_2`);
+        } else {
+            const exportRows = filteredData.map((d, i) => ({
+                'Peringkat': i + 1,
+                'Nama': d.nama || d.username,
+                'Username': d.username,
+                'Kelas': userMap[String(d.username).toLowerCase().trim()]?.kelas || '-',
+                'Sekolah': d.sekolah || '-',
+                'Kecamatan': userMap[String(d.username).toLowerCase().trim()]?.kecamatan || '-',
+                'Mata Pelajaran': d.mapel || '-',
+                'Jenis Ujian': d.jenis_ujian || d.exams?.jenis_ujian || '-',
+                'Nilai': parseFloat(d.nilai) || 0,
+                'Predikat': parseFloat(d.nilai) >= 75 ? 'Tuntas' : 'Belum Tuntas'
+            }));
+            exportToExcel(exportRows, `Ranking_Ujian_${selectedExamType}_${filterSubject || 'All'}`);
+        }
     };
     
     return (
-        <div className="bg-white rounded-2xl shadow-md border border-slate-200 fade-in p-6">
+        <div className="bg-white rounded-2xl shadow-md border border-slate-200 fade-in p-6 space-y-6">
             
-            {/* SUB-MENU SELECTION */}
-            <div className="flex border-b border-slate-100 mb-6 gap-6">
-                <button
-                    onClick={() => setSubTab('cbt')}
-                    className={`pb-3 text-sm font-black tracking-wide transition-all duration-200 relative ${subTab === 'cbt' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                    <span className="flex items-center gap-2">
-                        <Award size={18} /> RANKING CBT (BABAK I)
-                    </span>
-                    {subTab === 'cbt' && (
-                        <motion.div layoutId="subTabBorder" className="absolute bottom-0 inset-x-0 h-0.5 bg-indigo-600" />
-                    )}
-                </button>
-                <button
-                    onClick={() => setSubTab('lcc')}
-                    className={`pb-3 text-sm font-black tracking-wide transition-all duration-200 relative ${subTab === 'lcc' ? 'text-amber-500' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                    <span className="flex items-center gap-2">
-                        <Trophy size={18} className={subTab === 'lcc' ? 'animate-pulse text-amber-500' : ''} /> RANKING LCC (BABAK I + II)
-                    </span>
-                    {subTab === 'lcc' && (
-                        <motion.div layoutId="subTabBorder" className="absolute bottom-0 inset-x-0 h-0.5 bg-amber-500" />
-                    )}
-                </button>
+            {/* HEADER WITH JENIS UJIAN DROPDOWN */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-100">
+                <div>
+                    <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        {isLccMode ? (
+                            <Trophy size={24} className="text-amber-500 animate-pulse" />
+                        ) : (
+                            <Award size={24} className="text-indigo-600" />
+                        )}
+                        <span>Peringkat Hasil Ujian</span>
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1 font-medium">
+                        Pilih jenis ujian dari dropdown untuk menampilkan daftar peringkat nilai peserta.
+                    </p>
+                </div>
+
+                {/* DROPDOWN JENIS UJIAN */}
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                    <label className="text-xs font-black text-slate-700 whitespace-nowrap flex items-center gap-1.5 bg-indigo-50/80 text-indigo-800 px-3 py-2 rounded-xl border border-indigo-100">
+                        <Layers size={15} className="text-indigo-600" />
+                        <span>Jenis Ujian:</span>
+                    </label>
+                    <select
+                        value={selectedExamType}
+                        onChange={(e) => setSelectedExamType(e.target.value)}
+                        className="border-2 border-indigo-200 focus:border-indigo-500 rounded-xl px-3.5 py-2 text-sm font-extrabold bg-white text-slate-800 shadow-sm cursor-pointer outline-none w-full md:w-72 transition hover:border-indigo-300"
+                    >
+                        {examTypeOptions.map((t) => (
+                            <option key={t.id} value={t.id}>
+                                {t.label}
+                            </option>
+                        ))}
+                    </select>
+                </div>
             </div>
 
-            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-6 gap-4">
-                <div>
-                    <h3 className="font-extrabold text-lg flex items-center gap-2 text-slate-800">
-                        {subTab === 'cbt' ? (
-                            <>
-                                <Award size={22} className="text-indigo-600"/> Peringkat Peserta Babak I
-                            </>
-                        ) : (
-                            <>
-                                <Trophy size={22} className="text-amber-500"/> Peringkat Gabungan LCC (Babak I & II)
-                            </>
-                        )}
-                    </h3>
-                    <p className="text-xs text-slate-400 font-medium mt-1">
-                        {subTab === 'cbt' 
-                            ? 'Peringkat tersinkronisasi dengan seluruh hasil ujian CBT di database.'
-                            : 'Akumulasi total nilai Babak I (Ujian CBT) dan Babak II (Scoreboard Cerdas Cermat) beserta peringkat otomatis.'
-                        }
-                    </p>
+            {/* FILTER CONTROLS BAR */}
+            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+                <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-500">Filter Tampilan:</span>
+                    {isLccMode && (
+                        <span className="bg-amber-100 text-amber-800 text-[11px] font-black px-2.5 py-1 rounded-lg border border-amber-200 flex items-center gap-1">
+                            <Sparkles size={12} /> Mode Gabungan LCC (Babak I + II)
+                        </span>
+                    )}
                 </div>
                 
                 <div className="flex flex-col md:flex-row gap-2 w-full xl:w-auto flex-wrap">
                     {/* Render CBT-only Filters */}
-                    {subTab === 'cbt' && (
+                    {!isLccMode && (
                         <>
                             {/* Subject Filter */}
                             <div className="relative">
@@ -305,7 +372,7 @@ const RankingTab = ({ students }: { students: any[] }) => {
                         </>
                     )}
 
-                    {/* School and Kecamatan filters (relevant for both) */}
+                    {/* School and Kecamatan filters */}
                     <select 
                         className="p-2 border border-slate-200 rounded-lg text-sm font-bold bg-slate-50 outline-none focus:ring-2 focus:ring-indigo-100 cursor-pointer min-w-[140px]" 
                         value={filterKecamatan} 
@@ -332,21 +399,22 @@ const RankingTab = ({ students }: { students: any[] }) => {
                     </select>
                     
                     <button 
-                        onClick={subTab === 'cbt' ? () => exportToExcel(filteredData, `Ranking_CBT_${filterSubject || 'All'}`) : handleExportLcc} 
+                        onClick={handleExport} 
                         className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-700 transition shadow-lg shadow-emerald-100 active:scale-95"
                     >
-                        <FileText size={16}/> Export
+                        <FileText size={16}/> Export Excel
                     </button>
                 </div>
             </div>
 
+            {/* DATA TABLE */}
             <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-inner">
                 <table className="w-full text-xs md:text-sm text-left border-collapse">
                     <thead className="bg-slate-50 font-bold text-slate-600 uppercase text-[10px] md:text-xs">
-                        {subTab === 'cbt' ? (
+                        {!isLccMode ? (
                             <tr>
                                 <th className="p-3 md:p-4 text-center w-16">Rank</th>
-                                <th className="p-3 md:p-4">Nama</th>
+                                <th className="p-3 md:p-4">Nama Peserta</th>
                                 <th className="p-3 md:p-4 text-center">Kelas</th>
                                 <th className="p-3 md:p-4">Sekolah</th>
                                 <th className="p-3 md:p-4">Kecamatan</th>
@@ -368,20 +436,22 @@ const RankingTab = ({ students }: { students: any[] }) => {
                     <tbody className="divide-y divide-slate-100">
                         {loading ? (
                             <tr>
-                                <td colSpan={subTab === 'cbt' ? 8 : 6} className="p-12 text-center text-slate-400 font-bold">
+                                <td colSpan={!isLccMode ? 8 : 6} className="p-12 text-center text-slate-400 font-bold">
                                     <Loader2 className="animate-spin inline mr-2 text-indigo-600"/> Memuat data peringkat...
                                 </td>
                             </tr>
-                        ) : (subTab === 'cbt' ? filteredData : filteredLccData).length === 0 ? (
+                        ) : (!isLccMode ? filteredData : filteredLccData).length === 0 ? (
                             <tr>
-                                <td colSpan={subTab === 'cbt' ? 8 : 6} className="p-12 text-center text-slate-400 italic font-medium bg-slate-50/50">
-                                    Data tidak ditemukan untuk filter ini.
+                                <td colSpan={!isLccMode ? 8 : 6} className="p-12 text-center text-slate-400 italic font-medium bg-slate-50/50">
+                                    Data peringkat tidak ditemukan untuk jenis ujian dan filter ini.
                                 </td>
                             </tr>
                         ) : (
-                            (subTab === 'cbt' ? filteredData : filteredLccData).map((d, i) => {
-                                if (subTab === 'cbt') {
-                                    const score = parseFloat(d.nilai) || 0;
+                            (!isLccMode ? filteredData : filteredLccData).map((d, i) => {
+                                if (!isLccMode) {
+                                    const score = parseFloat(d.nilai) || parseFloat(d.score) || 0;
+                                    const uname = String(d.username || d.user_id || '').toLowerCase().trim();
+                                    const userObj = userMap[uname];
                                     return (
                                         <tr key={i} className="border-b hover:bg-slate-50 transition duration-150">
                                             <td className="p-2 md:p-4 font-bold text-center text-slate-500">
@@ -394,17 +464,17 @@ const RankingTab = ({ students }: { students: any[] }) => {
                                                 </div>
                                             </td>
                                             <td className="p-2 md:p-4">
-                                                <div className="font-extrabold text-slate-700 text-xs md:text-sm">{d.nama}</div>
+                                                <div className="font-extrabold text-slate-700 text-xs md:text-sm">{d.nama || userObj?.nama_lengkap || d.username}</div>
                                                 <div className="text-[9px] md:text-[10px] text-slate-400 font-mono font-bold mt-0.5">{d.username}</div>
                                             </td>
                                             <td className="p-2 md:p-4 text-center text-slate-600 font-extrabold text-xs">
-                                                {userMap[d.username]?.kelas || '-'}
+                                                {userObj?.kelas || d.kelas || '-'}
                                             </td>
-                                            <td className="p-2 md:p-4 text-slate-600 font-semibold text-xs md:text-sm">{d.sekolah}</td>
-                                            <td className="p-2 md:p-4 text-slate-600 text-xs md:text-sm font-semibold">{userMap[d.username]?.kecamatan || '-'}</td>
+                                            <td className="p-2 md:p-4 text-slate-600 font-semibold text-xs md:text-sm">{d.sekolah || userObj?.school || '-'}</td>
+                                            <td className="p-2 md:p-4 text-slate-600 text-xs md:text-sm font-semibold">{userObj?.kecamatan || d.kecamatan || '-'}</td>
                                             <td className="p-2 md:p-4 text-slate-600">
                                                 <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 md:px-2 md:py-1 rounded text-[9px] md:text-[10px] font-black uppercase border border-slate-200 whitespace-nowrap">
-                                                    {d.mapel}
+                                                    {d.mapel || '-'}
                                                 </span>
                                             </td>
                                             <td className="p-2 md:p-4 text-center font-black text-indigo-700 text-sm md:text-base border-l border-slate-100 bg-indigo-50/20">
@@ -456,12 +526,12 @@ const RankingTab = ({ students }: { students: any[] }) => {
                 </table>
             </div>
             
-            <div className="mt-4 flex flex-col sm:flex-row justify-between items-center text-xs text-slate-400 font-semibold gap-2">
+            <div className="flex flex-col sm:flex-row justify-between items-center text-xs text-slate-400 font-semibold gap-2">
                 <span>
-                    Menampilkan {(subTab === 'cbt' ? filteredData : filteredLccData).length} {subTab === 'cbt' ? 'Siswa' : 'Regu'}
+                    Menampilkan {(!isLccMode ? filteredData : filteredLccData).length} {!isLccMode ? 'Siswa' : 'Regu'}
                 </span>
-                {subTab === 'cbt' && filterSubject && <span>Mapel Aktif: {filterSubject}</span>}
-                {subTab === 'lcc' && <span className="text-amber-600 font-black">LCC Combined Scoreboard Mode</span>}
+                {!isLccMode && filterSubject && <span>Mapel Aktif: {filterSubject}</span>}
+                {isLccMode && <span className="text-amber-600 font-black">LCC Combined Scoreboard Mode</span>}
             </div>
         </div>
     );
