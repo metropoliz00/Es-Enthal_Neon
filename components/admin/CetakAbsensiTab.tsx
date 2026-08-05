@@ -180,10 +180,8 @@ const CetakAbsensiTab = ({ currentUser, students }: { currentUser: User, student
             return `
                 <tr>
                     <td style="text-align: center; vertical-align: middle;">${idx + 1}</td>
-                    <td style="vertical-align: middle; font-family: monospace;">${s.username}</td>
                     <td style="vertical-align: middle;">${nameHtml}</td>
                     <td style="text-align: center; vertical-align: middle;">${s.kelas || '-'}</td>
-                    <td style="vertical-align: middle;">${examName}</td>
                     <td style="vertical-align: middle;">${s.school || '-'}</td>
                     <td style="text-align: center; vertical-align: middle;">${s.kecamatan || '-'}</td>
                     <td style="vertical-align: middle; padding: 4px;">${signatureHtml}</td>
@@ -220,8 +218,7 @@ const CetakAbsensiTab = ({ currentUser, students }: { currentUser: User, student
                 <div class="header-container">
                     ${logoLeftUrl !== transparentPixel ? `<img src="${logoLeftUrl}" class="header-logo" />` : `<div style="width: 65px;"></div>`}
                     <div class="header-text">
-                        <h2>DAFTAR HADIR PESERTA</h2>
-                        <h2>${examType}</h2>
+                        <h2>DAFTAR HADIR PESERTA LOMBA CERDAS CERMAT</h2>
                         <h3>${schoolName} - ${kecamatanName}</h3>
                     </div>
                     ${logoRightUrl !== transparentPixel ? `<img src="${logoRightUrl}" class="header-logo" />` : `<div style="width: 65px;"></div>`}
@@ -235,10 +232,8 @@ const CetakAbsensiTab = ({ currentUser, students }: { currentUser: User, student
                     <thead>
                         <tr>
                             <th width="40">No</th>
-                            <th>Username</th>
                             <th>Nama</th>
-                            <th width="60">Kelas</th>
-                            <th>Mapel</th>
+                            <th width="60">Gugus</th>
                             <th>Sekolah</th>
                             <th>Kecamatan</th>
                             <th width="${isAnyBeregu ? '160' : '110'}">Tanda Tangan</th>
@@ -356,9 +351,8 @@ const CetakAbsensiTab = ({ currentUser, students }: { currentUser: User, student
                     <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
                         <tr>
                             <th className="p-4 w-10">No</th>
-                            <th className="p-4">Username</th>
                             <th className="p-4">Nama Peserta</th>
-                            <th className="p-4">Kelas</th>
+                            <th className="p-4">Gugus</th>
                             <th className="p-4">Sekolah</th>
                             <th className="p-4">Kecamatan</th>
                             <th className="p-4">Sesi</th>
@@ -371,7 +365,6 @@ const CetakAbsensiTab = ({ currentUser, students }: { currentUser: User, student
                             filteredStudents.map((s, idx) => (
                                 <tr key={s.username} className="hover:bg-slate-50">
                                     <td className="p-4 text-center text-slate-500 font-mono">{idx+1}</td>
-                                    <td className="p-4 font-mono font-bold text-slate-600">{s.username}</td>
                                     <td className="p-4 font-bold text-slate-700">
                                         {isBereguExamType(s.exam_type) ? (
                                             <div>
