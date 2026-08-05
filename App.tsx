@@ -26,6 +26,11 @@ const LoadingOverlay = ({ message }: { message: string }) => (
   </div>
 );
 
+const isAdminPanelRole = (role?: string) => {
+  if (!role) return false;
+  return role.toLowerCase() !== 'siswa';
+};
+
 function App() {
   const { showToast } = useToast();
 
@@ -88,8 +93,8 @@ function App() {
             const parsedUser = JSON.parse(savedUser);
             setCurrentUser(parsedUser);
             
-            // Check for new Role names: admin OR Guru OR Juri
-            if (parsedUser.role === 'admin' || parsedUser.role === 'Guru' || parsedUser.role === 'Juri' || parsedUser.role === 'juri') {
+            // Check for admin/staff roles vs student
+            if (isAdminPanelRole(parsedUser.role)) {
                 setView('admin');
             } else {
                 const isReguAccount = parsedUser.username.toLowerCase().includes('regu') || parsedUser.username.toLowerCase().includes('team') || isBereguExamType(parsedUser.exam_type);
@@ -149,8 +154,8 @@ function App() {
                 sessionStorage.setItem('cbt_user', JSON.stringify(user));
             }
 
-            // Check for new Role names: admin OR Guru OR Juri
-            if (user.role === 'admin' || user.role === 'Guru' || user.role === 'Juri' || user.role === 'juri') {
+            // Check for admin/staff roles vs student
+            if (isAdminPanelRole(user.role)) {
                 setView('admin');
             } else {
                 setLoadingMessage('Menyiapkan Data Ujian...');
@@ -197,7 +202,7 @@ function App() {
       setCurrentUser(targetUser);
 
       // 3. Determine View based on Role
-      if (targetUser.role === 'admin' || targetUser.role === 'Guru' || targetUser.role === 'Juri' || targetUser.role === 'juri') {
+      if (isAdminPanelRole(targetUser.role)) {
           setView('admin');
           setLoading(false);
       } else {

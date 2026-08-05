@@ -129,6 +129,16 @@ const RekapTab = ({ students, currentUser }: RekapTabProps) => {
                 }
             }
 
+            // OPERATOR KECAMATAN / GUGUS / JURI FILTER LOGIC
+            if (['Operator Kecamatan', 'Gugus', 'Juri', 'juri'].includes(currentUser.role)) {
+                if (currentUser.kecamatan && currentUser.kecamatan.toLowerCase() !== 'all' && currentUser.kecamatan !== '-') {
+                    if (userKec.toLowerCase() !== currentUser.kecamatan.toLowerCase()) return false;
+                }
+                if (currentUser.kelas && currentUser.kelas.toLowerCase() !== 'all' && currentUser.kelas !== '-') {
+                    if (userKelas.toLowerCase() !== currentUser.kelas.toLowerCase()) return false;
+                }
+            }
+
             // Standard Filters
             const matchSchool = filterSchool === 'all' || (d.sekolah && d.sekolah.toLowerCase() === filterSchool.toLowerCase());
             const matchKecamatan = filterKecamatan === 'all' || (userKec && userKec.toLowerCase() === filterKecamatan.toLowerCase());

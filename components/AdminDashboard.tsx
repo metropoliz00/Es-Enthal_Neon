@@ -28,14 +28,40 @@ interface AdminDashboardProps {
 
 type TabType = 'overview' | 'rekap' | 'analisis' | 'ranking' | 'bank_soal' | 'data_user' | 'data_admin' | 'status_tes' | 'kelompok_tes' | 'rilis_token' | 'atur_sesi' | 'atur_gelombang' | 'cetak_absensi' | 'cetak_kartu' | 'tujuan_pembelajaran' | 'konfigurasi' | 'scoreboard_lcc';
 
+const isOperator = (role: string) => ['Operator Kecamatan', 'Gugus'].includes(role);
+const isJuri = (role: string) => ['Juri', 'juri'].includes(role);
+const isAdmin = (role: string) => role === 'admin';
+const isGuruOrProktor = (role: string) => ['Guru', 'Proktor Sekolah'].includes(role);
+
+const checkCanAccess = (role: string, tab: TabType) => {
+    if (isAdmin(role)) return true;
+    if (isOperator(role)) {
+        return ['overview', 'scoreboard_lcc', 'status_tes', 'rilis_token', 'kelompok_tes', 'atur_sesi', 'rekap', 'cetak_kartu', 'cetak_absensi'].includes(tab);
+    }
+    if (isJuri(role)) {
+        return ['overview', 'scoreboard_lcc', 'rekap'].includes(tab);
+    }
+    if (isGuruOrProktor(role)) {
+        return ['overview', 'scoreboard_lcc', 'status_tes', 'rilis_token', 'kelompok_tes', 'atur_sesi', 'data_user', 'rekap', 'analisis', 'konfigurasi', 'cetak_kartu', 'cetak_absensi'].includes(tab);
+    }
+    return false;
+};
+
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onSwitchUser }) => {
-  const [activeTab, setActiveTab] = useState<TabType>(() => (localStorage.getItem('cbt_admin_tab') as TabType) || 'overview');
+  const [currentUserState, setCurrentUserState] = useState<User>(user);
+
+  const canAccess = (tab: TabType) => checkCanAccess(currentUserState.role, tab);
+
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+      const savedTab = localStorage.getItem('cbt_admin_tab') as TabType;
+      if (savedTab && checkCanAccess(user.role, savedTab)) return savedTab;
+      return 'overview';
+  });
   const [dashboardData, setDashboardData] = useState<any>({ students: [], questionsMap: {}, totalUsers: 0, token: 'TOKEN', duration: 60, maxQuestions: 0, kktp: 75, statusCounts: { OFFLINE: 0, LOGGED_IN: 0, WORKING: 0, FINISHED: 0 }, activityFeed: [], allUsers: [], schedules: [] });
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [currentUserState, setCurrentUserState] = useState<User>(user);
   
   // App Config for Logo
   const [appConfig, setAppConfig] = useState<Record<string, string>>({});
@@ -54,13 +80,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onSwitc
       setOpenGroups(prev => ({ ...prev, [group]: !prev[group] }));
   };
   
-  const isOperatorKecamatan = (role: string) => role === 'Operator Kecamatan' || role === 'Gugus';
-  const isJuri = (role: string) => ['Juri', 'juri'].includes(role);
-  const isAdmin = (role: string) => role === 'admin';
-  const canAccessUjian = (role: string) => isAdmin(role) || isOperatorKecamatan(role) || role === 'Proktor Sekolah';
-  const canAccessCetak = (role: string) => isAdmin(role) || isOperatorKecamatan(role) || role === 'Proktor Sekolah';
-  
-  const handleTabChange = (tab: TabType) => { setActiveTab(tab); localStorage.setItem('cbt_admin_tab', tab); setIsSidebarOpen(false); };
+  const handleTabChange = (tab: TabType) => { if (canAccess(tab)) { setActiveTab(tab); localStorage.setItem('cbt_admin_tab', tab); setIsSidebarOpen(false); } };
   
   // Update Document Title based on Active Tab
   useEffect(() => {
@@ -163,7 +183,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onSwitc
              </button>
              
              {/* GROUP: UJIAN */}
-             {canAccessUjian(currentUserState.role) && (
+             {canAccess('status_tes') && (
                  <>
                      <GroupHeader id="ujian" label="Ujian" />
                      {(openGroups['ujian'] || isCollapsed) && (
@@ -171,16 +191,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onSwitc
                             <button onClick={() => handleTabChange('status_tes')} className={navButtonClass('status_tes')} title="Live Status">
                                 <Monitor size={22} className={isCollapsed ? "" : "shrink-0 mr-3"}/> {!isCollapsed && <span>Live Status</span>}
                             </button>
-                            <button onClick={() => handleTabChange('rilis_token')} className={navButtonClass('rilis_token')} title="Token & Timer">
-                                <Key size={22} className={isCollapsed ? "" : "shrink-0 mr-3"}/> {!isCollapsed && <span>Token & Timer</span>}
-                            </button>
-                            <button onClick={() => handleTabChange('kelompok_tes')} className={navButtonClass('kelompok_tes')} title="Set Ujian Aktif">
-                                <Group size={22} className={isCollapsed ? "" : "shrink-0 mr-3"}/> {!isCollapsed && <span>Set Ujian Aktif</span>}
-                            </button>
-                            <button onClick={() => handleTabChange('atur_sesi')} className={navButtonClass('atur_sesi')} title="Atur Sesi">
-                                <Clock size={22} className={isCollapsed ? "" : "shrink-0 mr-3"}/> {!isCollapsed && <span>Atur Sesi</span>}
-                            </button>
-                            {currentUserState.role === 'admin' && (
+                            {canAccess('rilis_token') && (
+                                <button onClick={() => handleTabChange('rilis_token')} className={navButtonClass('rilis_token')} title="Token & Timer">
+                                    <Key size={22} className={isCollapsed ? "" : "shrink-0 mr-3"}/> {!isCollapsed && <span>Token & Timer</span>}
+                                </button>
+                            )}
+                            {canAccess('kelompok_tes') && (
+                                <button onClick={() => handleTabChange('kelompok_tes')} className={navButtonClass('kelompok_tes')} title="Set Ujian Aktif">
+                                    <Group size={22} className={isCollapsed ? "" : "shrink-0 mr-3"}/> {!isCollapsed && <span>Set Ujian Aktif</span>}
+                                </button>
+                            )}
+                            {canAccess('atur_sesi') && (
+                                <button onClick={() => handleTabChange('atur_sesi')} className={navButtonClass('atur_sesi')} title="Atur Sesi">
+                                    <Clock size={22} className={isCollapsed ? "" : "shrink-0 mr-3"}/> {!isCollapsed && <span>Atur Sesi</span>}
+                                </button>
+                            )}
+                            {isAdmin(currentUserState.role) && (
                                 <button onClick={() => handleTabChange('atur_gelombang')} className={navButtonClass('atur_gelombang')} title="Atur Gelombang">
                                     <Calendar size={22} className={isCollapsed ? "" : "shrink-0 mr-3"}/> {!isCollapsed && <span>Atur Gelombang</span>}
                                 </button>
@@ -201,7 +227,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onSwitc
              )}
              
              {/* GROUP: MANAJEMEN USER */}
-             {(currentUserState.role === 'admin' || currentUserState.role === 'Guru' || currentUserState.role === 'Proktor Sekolah') && (
+             {canAccess('data_user') && (
                  <>
                     <GroupHeader id="user" label="Manajemen User" />
                     {(openGroups['user'] || isCollapsed) && (
@@ -209,7 +235,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onSwitc
                             <button onClick={() => handleTabChange('data_user')} className={navButtonClass('data_user')} title="Data Siswa">
                                 <List size={22} className={isCollapsed ? "" : "shrink-0 mr-3"}/> {!isCollapsed && <span>Data Siswa</span>}
                             </button>
-                            {currentUserState.role === 'admin' && (
+                            {isAdmin(currentUserState.role) && (
                                 <button onClick={() => handleTabChange('data_admin')} className={navButtonClass('data_admin')} title="Data Admin & Guru">
                                     <UserCog size={22} className={isCollapsed ? "" : "shrink-0 mr-3"}/> {!isCollapsed && <span>Data Admin & Guru</span>}
                                 </button>
@@ -220,12 +246,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onSwitc
              )}
 
              {/* GROUP: DATA & LAPORAN */}
-             {(currentUserState.role === 'admin' || currentUserState.role === 'Guru' || currentUserState.role === 'Juri' || currentUserState.role === 'juri' || currentUserState.role === 'Operator Kecamatan' || currentUserState.role === 'Proktor Sekolah') && (
+             {(canAccess('rekap') || canAccess('analisis') || canAccess('konfigurasi') || isAdmin(currentUserState.role)) && (
                  <>
                     <GroupHeader id="data" label="Data & Laporan" />
                     {(openGroups['data'] || isCollapsed) && (
                         <div className={!isCollapsed ? "pl-2 border-l border-slate-200 ml-3 space-y-1" : "space-y-1"}>
-                            {currentUserState.role === 'admin' && (
+                            {isAdmin(currentUserState.role) && (
                                 <>
                                 <button onClick={() => handleTabChange('tujuan_pembelajaran')} className={navButtonClass('tujuan_pembelajaran')} title="Tujuan Pembelajaran">
                                     <Target size={22} className={isCollapsed ? "" : "shrink-0 mr-3"}/> {!isCollapsed && <span>Tujuan Pembelajaran</span>}
@@ -236,38 +262,47 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onSwitc
                                 </>
                             )}
                             
-                            {/* Rekap & Analisis now available for Guru and Juri */}
-                            <button onClick={() => handleTabChange('rekap')} className={navButtonClass('rekap')} title="Rekap Nilai">
-                                <LayoutDashboard size={22} className={isCollapsed ? "" : "shrink-0 mr-3"}/> {!isCollapsed && <span>Rekap Nilai</span>}
-                            </button>
-                            <button onClick={() => handleTabChange('analisis')} className={navButtonClass('analisis')} title="Analisis Soal">
-                                <BarChart3 size={22} className={isCollapsed ? "" : "shrink-0 mr-3"}/> {!isCollapsed && <span>Analisis Soal</span>}
-                            </button>
+                            {canAccess('rekap') && (
+                                <button onClick={() => handleTabChange('rekap')} className={navButtonClass('rekap')} title="Rekap Nilai">
+                                    <LayoutDashboard size={22} className={isCollapsed ? "" : "shrink-0 mr-3"}/> {!isCollapsed && <span>Rekap Nilai</span>}
+                                </button>
+                            )}
+                            {canAccess('analisis') && (
+                                <button onClick={() => handleTabChange('analisis')} className={navButtonClass('analisis')} title="Analisis Soal">
+                                    <BarChart3 size={22} className={isCollapsed ? "" : "shrink-0 mr-3"}/> {!isCollapsed && <span>Analisis Soal</span>}
+                                </button>
+                            )}
                             
-                            {currentUserState.role === 'admin' && (
+                            {isAdmin(currentUserState.role) && (
                                 <button onClick={() => handleTabChange('ranking')} className={navButtonClass('ranking')} title="Peringkat">
                                     <Award size={22} className={isCollapsed ? "" : "shrink-0 mr-3"}/> {!isCollapsed && <span>Peringkat</span>}
                                 </button>
                             )}
                             
-                            <button onClick={() => handleTabChange('konfigurasi')} className={navButtonClass('konfigurasi')} title="Konfigurasi">
-                                <Settings size={22} className={isCollapsed ? "" : "shrink-0 mr-3"}/> {!isCollapsed && <span>Konfigurasi</span>}
-                            </button>
+                            {canAccess('konfigurasi') && (
+                                <button onClick={() => handleTabChange('konfigurasi')} className={navButtonClass('konfigurasi')} title="Konfigurasi">
+                                    <Settings size={22} className={isCollapsed ? "" : "shrink-0 mr-3"}/> {!isCollapsed && <span>Konfigurasi</span>}
+                                </button>
+                            )}
                         </div>
                     )}
                  </>
              )}
              
              {/* GROUP: CETAK */}
-             {canAccessCetak(currentUserState.role) && <GroupHeader id="cetak" label="Cetak" />}
-             {(openGroups['cetak'] || isCollapsed) && canAccessCetak(currentUserState.role) && (
+             {(canAccess('cetak_kartu') || canAccess('cetak_absensi')) && <GroupHeader id="cetak" label="Cetak" />}
+             {(openGroups['cetak'] || isCollapsed) && (canAccess('cetak_kartu') || canAccess('cetak_absensi')) && (
                  <div className={!isCollapsed ? "pl-2 border-l border-slate-200 ml-3 space-y-1" : "space-y-1"}>
-                    <button onClick={() => handleTabChange('cetak_kartu')} className={navButtonClass('cetak_kartu')} title="Kartu Peserta">
-                        <CreditCard size={22} className={isCollapsed ? "" : "shrink-0 mr-3"}/> {!isCollapsed && <span>Kartu Peserta</span>}
-                    </button>
-                    <button onClick={() => handleTabChange('cetak_absensi')} className={navButtonClass('cetak_absensi')} title="Absensi">
-                        <Printer size={22} className={isCollapsed ? "" : "shrink-0 mr-3"}/> {!isCollapsed && <span>Absensi</span>}
-                    </button>
+                    {canAccess('cetak_kartu') && (
+                        <button onClick={() => handleTabChange('cetak_kartu')} className={navButtonClass('cetak_kartu')} title="Kartu Peserta">
+                            <CreditCard size={22} className={isCollapsed ? "" : "shrink-0 mr-3"}/> {!isCollapsed && <span>Kartu Peserta</span>}
+                        </button>
+                    )}
+                    {canAccess('cetak_absensi') && (
+                        <button onClick={() => handleTabChange('cetak_absensi')} className={navButtonClass('cetak_absensi')} title="Absensi">
+                            <Printer size={22} className={isCollapsed ? "" : "shrink-0 mr-3"}/> {!isCollapsed && <span>Absensi</span>}
+                        </button>
+                    )}
                  </div>
              )}
         </nav>
@@ -282,10 +317,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onSwitc
                      )}
                  </div>
                  {!isCollapsed && (
-                     <div className="overflow-hidden flex-1 min-w-0 text-left">
-                         <p className="text-xs font-black text-slate-700 truncate">{currentUserState.nama_lengkap || currentUserState.username}</p>
-                         <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest truncate">
-                             {currentUserState.role === 'admin' ? 'Administrator' : 'GURU'}
+                     <div className="flex-1 min-w-0 text-left py-0.5 overflow-hidden">
+                         {(() => {
+                             const name = currentUserState.nama_lengkap || currentUserState.username || '';
+                             const fontSize = name.length > 28 ? '9px' : name.length > 20 ? '10px' : name.length > 15 ? '11px' : '12px';
+                             return (
+                                 <p 
+                                     className="font-black text-slate-700 leading-tight whitespace-nowrap overflow-hidden text-ellipsis"
+                                     style={{ fontSize }}
+                                     title={name}
+                                 >
+                                     {name}
+                                 </p>
+                             );
+                         })()}
+                         <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider leading-tight break-words mt-0.5">
+                             {currentUserState.role === 'admin' ? 'Administrator' : currentUserState.role}
                          </p>
                      </div>
                  )}
@@ -326,30 +373,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onSwitc
                     {activeTab === 'cetak_kartu' && <CetakKartuTab currentUser={currentUserState} students={dashboardData.allUsers || []} schedules={dashboardData.schedules || []} />}
                     
                     {/* Separate Tabs based on Mode and Pass onSwitchUser */}
-                    {activeTab === 'data_user' && (currentUserState.role === 'admin' || currentUserState.role === 'Guru' || currentUserState.role === 'Operator Kecamatan' || currentUserState.role === 'Proktor Sekolah') && (
+                    {activeTab === 'data_user' && canAccess('data_user') && (
                         <DaftarPesertaTab currentUser={currentUserState} onDataChange={fetchData} mode="siswa" onSwitchUser={onSwitchUser} />
                     )}
-                    {activeTab === 'data_admin' && currentUserState.role === 'admin' && (
+                    {activeTab === 'data_admin' && isAdmin(currentUserState.role) && (
                         <DaftarPesertaTab currentUser={currentUserState} onDataChange={fetchData} mode="staff" onSwitchUser={onSwitchUser} />
                     )}
 
-                    {activeTab === 'atur_gelombang' && currentUserState.role === 'admin' && <AturGelombangTab students={dashboardData.allUsers || []} />}
-                    {activeTab === 'rilis_token' && <RilisTokenTab currentUser={currentUserState} token={dashboardData.token} duration={dashboardData.duration} maxQuestions={dashboardData.maxQuestions} kktp={dashboardData.kktp} surveyDuration={0} refreshData={fetchData} isRefreshing={isRefreshing} schedules={dashboardData.schedules || []} students={dashboardData.allUsers || []} />}
-                    {activeTab === 'bank_soal' && currentUserState.role === 'admin' && <BankSoalTab />}
-                    {activeTab === 'tujuan_pembelajaran' && currentUserState.role === 'admin' && <TujuanPembelajaranTab />}
+                    {activeTab === 'atur_gelombang' && isAdmin(currentUserState.role) && <AturGelombangTab students={dashboardData.allUsers || []} />}
+                    {activeTab === 'rilis_token' && canAccess('rilis_token') && <RilisTokenTab currentUser={currentUserState} token={dashboardData.token} duration={dashboardData.duration} maxQuestions={dashboardData.maxQuestions} kktp={dashboardData.kktp} surveyDuration={0} refreshData={fetchData} isRefreshing={isRefreshing} schedules={dashboardData.schedules || []} students={dashboardData.allUsers || []} />}
+                    {activeTab === 'bank_soal' && isAdmin(currentUserState.role) && <BankSoalTab />}
+                    {activeTab === 'tujuan_pembelajaran' && isAdmin(currentUserState.role) && <TujuanPembelajaranTab />}
                     
                     {/* REKAP & ANALISIS for Admin, Guru, and Juri */}
-                    {activeTab === 'rekap' && (currentUserState.role === 'admin' || currentUserState.role === 'Guru' || currentUserState.role === 'Juri' || currentUserState.role === 'juri' || currentUserState.role === 'Operator Kecamatan' || currentUserState.role === 'Proktor Sekolah') && (
+                    {activeTab === 'rekap' && canAccess('rekap') && (
                         <RekapTab students={dashboardData.allUsers} currentUser={currentUserState} />
                     )}
-                    {activeTab === 'analisis' && (currentUserState.role === 'admin' || currentUserState.role === 'Guru' || currentUserState.role === 'Juri' || currentUserState.role === 'juri' || currentUserState.role === 'Operator Kecamatan' || currentUserState.role === 'Proktor Sekolah') && (
+                    {activeTab === 'analisis' && canAccess('analisis') && (
                         <AnalisisTab currentUser={currentUserState} students={dashboardData.allUsers} />
                     )}
                     
-                    {activeTab === 'ranking' && currentUserState.role === 'admin' && <RankingTab students={dashboardData.allUsers} />}
+                    {activeTab === 'ranking' && isAdmin(currentUserState.role) && <RankingTab students={dashboardData.allUsers} />}
                     
                     {/* Allow Konfigurasi for Admin, Guru, and Juri */}
-                    {activeTab === 'konfigurasi' && (currentUserState.role === 'admin' || currentUserState.role === 'Guru' || currentUserState.role === 'Juri' || currentUserState.role === 'juri' || currentUserState.role === 'Operator Kecamatan' || currentUserState.role === 'Proktor Sekolah') && (
+                    {activeTab === 'konfigurasi' && canAccess('konfigurasi') && (
                         <KonfigurasiTab currentUser={currentUserState} />
                     )}
 

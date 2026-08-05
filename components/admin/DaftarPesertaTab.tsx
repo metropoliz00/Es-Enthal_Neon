@@ -358,7 +358,18 @@ const DaftarPesertaTab = ({ currentUser, onDataChange, mode = 'siswa', onSwitchU
             ); 
         } 
         if (currentUser.role === 'Guru') res = res.filter(u => u.role === 'siswa' && (u.school || '').toLowerCase() === (currentUser.kelas_id || '').toLowerCase()); 
-        if (currentUser.role === 'Operator Kecamatan') res = res.filter(u => u.role === 'siswa' && u.exam_type === 'LCC');
+        if (['Operator Kecamatan', 'Gugus', 'Juri', 'juri'].includes(currentUser.role)) {
+            res = res.filter(u => {
+                if (u.role !== 'siswa') return false;
+                if (currentUser.kecamatan && currentUser.kecamatan.toLowerCase() !== 'all' && currentUser.kecamatan !== '-') {
+                    if ((u.kecamatan || '').toLowerCase() !== currentUser.kecamatan.toLowerCase()) return false;
+                }
+                if (currentUser.kelas && currentUser.kelas.toLowerCase() !== 'all' && currentUser.kelas !== '-') {
+                    if ((u.kelas || '').toLowerCase() !== currentUser.kelas.toLowerCase()) return false;
+                }
+                return true;
+            });
+        }
         if (currentUser.role === 'Proktor Sekolah') res = res.filter(u => u.role === 'siswa' && (u.exam_type === 'OSN' || u.exam_type === 'TKA')); 
         
         // Sort by Name
