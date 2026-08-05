@@ -54,7 +54,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onSwitc
       setOpenGroups(prev => ({ ...prev, [group]: !prev[group] }));
   };
   
-  const isRestrictedRole = (role: string) => ['Operator Kecamatan', 'Gugus', 'Juri', 'juri'].includes(role);
+  const isOperatorKecamatan = (role: string) => role === 'Operator Kecamatan' || role === 'Gugus';
+  const isJuri = (role: string) => ['Juri', 'juri'].includes(role);
+  const isAdmin = (role: string) => role === 'admin';
+  const canAccessUjian = (role: string) => isAdmin(role) || isOperatorKecamatan(role) || role === 'Proktor Sekolah';
+  const canAccessCetak = (role: string) => isAdmin(role) || isOperatorKecamatan(role) || role === 'Proktor Sekolah';
   
   const handleTabChange = (tab: TabType) => { setActiveTab(tab); localStorage.setItem('cbt_admin_tab', tab); setIsSidebarOpen(false); };
   
@@ -159,7 +163,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onSwitc
              </button>
              
              {/* GROUP: UJIAN */}
-             {!isRestrictedRole(currentUserState.role) && (
+             {canAccessUjian(currentUserState.role) && (
                  <>
                      <GroupHeader id="ujian" label="Ujian" />
                      {(openGroups['ujian'] || isCollapsed) && (
@@ -255,8 +259,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onSwitc
              )}
              
              {/* GROUP: CETAK */}
-             {!isRestrictedRole(currentUserState.role) && <GroupHeader id="cetak" label="Cetak" />}
-             {(openGroups['cetak'] || isCollapsed) && !isRestrictedRole(currentUserState.role) && (
+             {canAccessCetak(currentUserState.role) && <GroupHeader id="cetak" label="Cetak" />}
+             {(openGroups['cetak'] || isCollapsed) && canAccessCetak(currentUserState.role) && (
                  <div className={!isCollapsed ? "pl-2 border-l border-slate-200 ml-3 space-y-1" : "space-y-1"}>
                     <button onClick={() => handleTabChange('cetak_kartu')} className={navButtonClass('cetak_kartu')} title="Kartu Peserta">
                         <CreditCard size={22} className={isCollapsed ? "" : "shrink-0 mr-3"}/> {!isCollapsed && <span>Kartu Peserta</span>}
