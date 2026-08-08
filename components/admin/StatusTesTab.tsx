@@ -5,7 +5,7 @@ import { Monitor, Search, PlayCircle, Key, CheckCircle2, RefreshCw, Filter, User
 import { api } from '../../src/services/api';
 import { User } from '../../types';
 import ConfirmationModal from '../ui/ConfirmationModal';
-import { getSchoolOnly } from '../../utils/adminHelpers';
+import { getSchoolOnly, parseTeamAndMembers } from '../../utils/adminHelpers';
 
 const StatusTesTab = ({ currentUser, students, refreshData }: { currentUser: User, students: any[], refreshData: () => void }) => {
     const { showToast } = useToast();
@@ -176,7 +176,38 @@ const StatusTesTab = ({ currentUser, students, refreshData }: { currentUser: Use
                                 : filtered.map((s, i) => (
                                 <tr key={i} className="hover:bg-slate-50/80 transition-colors group">
                                     <td className="p-3 md:p-5 font-mono text-slate-500 font-bold">{s.username}</td>
-                                    <td className="p-3 md:p-5 font-bold text-slate-800">{s.fullname}</td>
+                                    <td className="p-3 md:p-5 font-bold text-slate-800">
+                                        {((s.exam_type || '').toUpperCase().includes('LCC') || 
+                                          (s.exam_type || '').toUpperCase().includes('CERDAS') || 
+                                          (s.username || '').toLowerCase().startsWith('regu_') || 
+                                          (s.username || '').toLowerCase().startsWith('team_') ||
+                                          (s.active_exam || '').toUpperCase().includes('LCC') ||
+                                          (s.active_exam || '').toUpperCase().includes('CERDAS')) ? (
+                                            (() => {
+                                                const { reguTitle, members } = parseTeamAndMembers(s.fullname || s.nama_lengkap || s.username);
+                                                return (
+                                                    <div className="flex flex-col gap-1.5 text-xs py-1">
+                                                        <div className="font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-md inline-flex items-center gap-1.5 shadow-sm max-w-max uppercase tracking-wide">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
+                                                            {reguTitle}
+                                                        </div>
+                                                        {members && members.length > 0 ? (
+                                                            <ol className="list-none pl-1 space-y-1 text-slate-600 font-semibold mt-1">
+                                                                {members.map((m: string, idx: number) => (
+                                                                    <li key={idx} className="flex items-center gap-1.5">
+                                                                        <span className="text-[10px] font-mono font-black text-indigo-500 bg-indigo-50/80 border border-indigo-100/50 w-4 h-4 rounded-full flex items-center justify-center shadow-2xs">{idx + 1}</span>
+                                                                        <span className="text-slate-700 font-medium">{m}</span>
+                                                                    </li>
+                                                                ))}
+                                                            </ol>
+                                                        ) : null}
+                                                    </div>
+                                                );
+                                            })()
+                                        ) : (
+                                            s.fullname
+                                        )}
+                                    </td>
                                     <td className="p-3 md:p-5 text-center font-bold text-indigo-600 bg-indigo-50/30">
                                         {/* UPDATED: Display Class direct from DB */}
                                         {s.kelas || '-'}

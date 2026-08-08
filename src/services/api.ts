@@ -78,6 +78,7 @@ const encodeUserForDb = (userData: any): any => {
         exam_type: dbExamType,
         active_exam: userData.active_exam === '' ? null : userData.active_exam,
         active_tp: userData.active_tp === '' ? null : userData.active_tp,
+        active_paket: userData.active_paket === '' ? null : userData.active_paket,
         photo_url: userData.photo_url || null
     };
 };
@@ -726,6 +727,7 @@ export const api = {
                   kelas_id: decoded.school || decoded.kelas_id,
                   photo_url: formatGoogleDriveUrl(decoded.photo_url),
                   active_tp: decoded.active_tp || '',
+                  active_paket: decoded.active_paket || '',
                   exam_type: decoded.exam_type || ''
               };
           });

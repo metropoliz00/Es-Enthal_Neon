@@ -603,12 +603,40 @@ app.post("/api/learning-objectives/import", async (req, res) => {
 
 // 22. Assign Test Group
 app.post("/api/assign-test-group", async (req, res) => {
-  const { usernames, examId, session, tpId, examType } = req.body;
+  const { usernames, examId, session, tpId, examType, activePaket } = req.body;
   try {
     await runWithSupabaseFallback(null, async (supabase) => {
-        const { error } = await supabase.from('users')
-          .update({ active_exam: examId, session, active_tp: tpId, exam_type: examType })
+        const updatePayload: any = { active_exam: examId, session, active_tp: tpId, exam_type: examType, active_paket: activePaket };
+        let { error } = await supabase.from('users')
+          .update(updatePayload)
           .in('username', usernames);
+          
+        if (error) {
+          const msg = String(error.message || error.details || error.hint || '');
+          if (msg.includes("Could not find the") || msg.includes("column") || msg.includes("schema cache") || msg.includes("active_paket")) {
+            // Attempt to add column via exec_sql RPC
+            try {
+              await supabase.rpc('exec_sql', { sql_query: "ALTER TABLE public.users ADD COLUMN IF NOT EXISTS active_paket TEXT;" });
+              // Retry update with active_paket
+              const retry = await supabase.from('users')
+                .update(updatePayload)
+                .in('username', usernames);
+              if (!retry.error) return;
+              error = retry.error;
+            } catch (_) {
+              // ignore
+            }
+            
+            // If still failing or RPC not supported, strip active_paket and update without it
+            delete updatePayload.active_paket;
+            const retryWithoutPaket = await supabase.from('users')
+              .update(updatePayload)
+              .in('username', usernames);
+            if (!retryWithoutPaket.error) return;
+            error = retryWithoutPaket.error;
+          }
+        }
+        
         if (error) throw error;
       }
     );
