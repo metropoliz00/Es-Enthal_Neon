@@ -337,24 +337,31 @@ const KonfigurasiTab = ({ currentUser }: { currentUser: User }) => {
                                     </div>
                                     
                                     <p className="text-xs font-medium mt-1 opacity-90 leading-relaxed">
-                                        Database Neon belum terhubung atau variabel lingkungan DATABASE_URL belum disetting.
+                                        Database Supabase belum terhubung. Silakan atur variabel lingkungan Supabase Anda.
                                     </p>
 
                                     <div className="mt-3 p-3 bg-white/90 rounded-xl border border-amber-200 text-xs space-y-2 text-slate-800 shadow-sm">
                                         <p className="font-bold text-amber-900 flex items-center gap-1">
                                             <AlertCircle size={14} className="text-amber-600" />
-                                            Petunjuk Menghubungkan Database Neon:
+                                            Petunjuk Menghubungkan Supabase:
                                         </p>
                                         {dbHealth?.error && (
                                             <p className="font-mono text-[11px] bg-rose-50 text-rose-800 p-2 rounded border border-rose-200 break-all">
                                                 Detail Error: {dbHealth.error}
                                             </p>
                                         )}
-                                        <ol className="list-decimal list-inside space-y-1 text-slate-700 font-medium text-[11px]">
-                                            <li>Buka dashboard Neon Anda di <strong>neon.tech</strong> dan salin <strong>Connection String</strong>.</li>
-                                            <li>Buka menu <strong>Settings</strong> &gt; <strong>Secrets / Environment Variables</strong> di AI Studio.</li>
-                                            <li>Tambahkan variabel bernama <code>DATABASE_URL</code> dan tempelkan connection string tadi.</li>
-                                            <li>Klik tombol <strong>Cek Ulang Koneksi</strong> setelah menambahkan.</li>
+                                        <ol className="list-decimal list-inside space-y-1.5 text-slate-700 font-medium text-[11px]">
+                                            <li>Buka dashboard Supabase Anda di <strong>supabase.com</strong> &gt; <strong>Project Settings</strong> &gt; <strong>API</strong>.</li>
+                                            <li>Salin <strong>Project URL</strong> dan <strong>anon / public key</strong>.</li>
+                                            <li>Buka menu <strong>Settings</strong> &gt; <strong>Secrets / Environment Variables</strong> di AI Studio (atau di Netlify/Vercel).</li>
+                                            <li>Tambahkan 2 variabel utama:
+                                                <ul className="list-disc list-inside ml-4 mt-0.5 space-y-0.5 text-slate-800 font-mono text-[10px]">
+                                                    <li><code>SUPABASE_URL</code></li>
+                                                    <li><code>SUPABASE_ANON_KEY</code></li>
+                                                </ul>
+                                            </li>
+                                            <li>Jalankan script SQL dari file <code>supabase_schema.sql</code> di SQL Editor Supabase Anda.</li>
+                                            <li>Klik tombol <strong>Cek Ulang Koneksi</strong> setelah menambahkan variabel.</li>
                                         </ol>
                                     </div>
                                 </div>

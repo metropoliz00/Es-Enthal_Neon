@@ -1,12 +1,12 @@
-# Panduan Deployment & Koneksi Database Neon (Netlify & Vercel)
+# Panduan Deployment & Koneksi Database Supabase (Netlify & Vercel)
 
-Aplikasi ini telah dikonfigurasi penuh untuk mendukung deployment di **Netlify** maupun **Vercel** dengan database **Neon PostgreSQL**.
+Aplikasi ini telah dikonfigurasi penuh untuk mendukung deployment di **Netlify** maupun **Vercel** dengan database **Supabase PostgreSQL**.
 
 ---
 
 ## 🚀 Panduan Deployment di Netlify (Paling Direkomendasikan)
 
-Jika Anda mendepositkan/mendeploy aplikasi ini ke **Netlify**, ikuti langkah-langkah berikut agar API backend dan koneksi database Neon langsung terhubung sempurna:
+Jika Anda mendepositkan/mendeploy aplikasi ini ke **Netlify**, ikuti langkah-langkah berikut agar API backend dan koneksi database Supabase langsung terhubung sempurna:
 
 ### 1. Hubungkan Repositori ke Netlify
 1. Buka [Netlify Dashboard](https://app.netlify.com).
@@ -20,9 +20,10 @@ Jika Anda mendepositkan/mendeploy aplikasi ini ke **Netlify**, ikuti langkah-lan
 
 ### 2. Set Environment Variables di Netlify (WAJIB)
 1. Setelah proyek dibuat (atau sebelum deploy), masuk ke **Site configuration** > **Environment variables**.
-2. Tambahkan variabel baru:
-   - **Key**: `DATABASE_URL`
-   - **Value**: Tempelkan connection string Neon Anda (contoh: `postgresql://neondb_owner:password@ep-xyz.singapore.aws.neon.tech/neondb?sslmode=require`). Pastikan **tanpa tanda kutip** (`"` atau `'`).
+2. Tambahkan 2 variabel utama Supabase Anda:
+   - **`SUPABASE_URL`**: Project URL Supabase Anda (contoh: `https://xyz.supabase.co`)
+   - **`SUPABASE_ANON_KEY`**: Anon / Public Key Supabase Anda
+   *(Opsional: Jika menggunakan connection string langsung, Anda bisa menambahkan `DATABASE_URL`)*
 3. Klik **Save**.
 
 ### 3. Deploy Ulang (Trigger Deploy)
@@ -42,6 +43,7 @@ Jika menggunakan **Vercel**:
 ---
 
 ## 🔍 Solusi Cepat Jika Masih Belum Connect:
-1. **Pastikan Connection String Neon benar**: Format harus dimulai dengan `postgresql://...` dan berakhiran `?sslmode=require`.
-2. **Jangan gunakan tanda kutip**: Saat memasukkan `DATABASE_URL` di Vercel atau Netlify, pastikan tidak ada tanda kutip ganda (`"`) atau tunggal (`'`) di awal/akhir string.
-3. **Redeploy setelah ubah Environment Variable**: Baik di Vercel maupun Netlify, setiap kali Anda mengubah env var, Anda **wajib melakukan manual redeploy** agar variabel terbaca oleh serverless function.
+1. **Pastikan Connection String Supabase benar**: Format harus dimulai dengan `postgresql://...` atau `postgres://...`.
+2. **Isi password database dengan benar**: Pastikan mengganti placeholder `[YOUR-PASSWORD]` dengan password database Supabase yang dibuat saat membuat project.
+3. **Jangan gunakan tanda kutip**: Saat memasukkan `DATABASE_URL` di Vercel atau Netlify, pastikan tidak ada tanda kutip ganda (`"`) atau tunggal (`'`) di awal/akhir string.
+4. **Redeploy setelah ubah Environment Variable**: Baik di Vercel maupun Netlify, setiap kali Anda mengubah env var, Anda **wajib melakukan manual redeploy** agar variabel terbaca oleh serverless function.

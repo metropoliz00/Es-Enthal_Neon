@@ -104,7 +104,7 @@ app.get(["/api/health", "/health", "/api/health/"], async (req, res) => {
     // 4-second query timeout safeguard so health checks never hang or time out in Vercel
     const result = await Promise.race([
       pool.query("SELECT NOW()"),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Koneksi database timeout (4 detik). Pastikan database Neon Anda aktif.")), 4000))
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Koneksi database timeout (4 detik). Pastikan database Supabase Anda aktif.")), 4000))
     ]) as any;
 
     return res.status(200).json({

@@ -1,14 +1,14 @@
-import { Pool as NeonPool } from '@neondatabase/serverless';
-import { drizzle as drizzleNeon } from 'drizzle-orm/neon-serverless';
-import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
-import { Pool as PgPool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import pg from 'pg';
 import * as schema from './schema';
 
+const { Pool } = pg;
+
 declare global {
-  var _activePool: any;
+  var _activePool: pg.Pool | undefined;
 }
 
-export const createPool = () => {
+export const createPool = (): pg.Pool => {
   if (!global._activePool) {
     let connectionString = process.env.DATABASE_URL?.trim();
     if (connectionString) {
@@ -21,38 +21,36 @@ export const createPool = () => {
     }
 
     if (connectionString) {
-      try {
-        global._activePool = new NeonPool({
-          connectionString,
-          max: 3,
-          idleTimeoutMillis: 10000,
-          connectionTimeoutMillis: 5000,
-        });
-      } catch (err: any) {
-        console.error("Failed to initialize Neon Pool:", err);
-      }
+      global._activePool = new Pool({
+        connectionString,
+        ssl: { rejectUnauthorized: false },
+        max: 10,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000,
+      });
     } else if (host) {
-      global._activePool = new PgPool({
+      global._activePool = new Pool({
         host,
         user: process.env.SQL_USER,
         password: process.env.SQL_PASSWORD,
         database: process.env.SQL_DB_NAME,
         port: process.env.SQL_PORT ? Number(process.env.SQL_PORT) : 5432,
         ssl: { rejectUnauthorized: false },
-        max: 3,
-        connectionTimeoutMillis: 5000,
+        max: 10,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000,
       });
     } else {
       global._activePool = {
         query: async () => {
-          throw new Error("DATABASE_URL belum disetting di Environment Variables Vercel.");
+          throw new Error("DATABASE_URL belum disetting di Environment Variables.");
         },
         on: () => {},
         connect: async () => {
-          throw new Error("DATABASE_URL belum disetting di Environment Variables Vercel.");
+          throw new Error("DATABASE_URL belum disetting di Environment Variables.");
         },
         end: async () => {}
-      };
+      } as unknown as pg.Pool;
     }
   }
   return global._activePool;
@@ -60,11 +58,7 @@ export const createPool = () => {
 
 export const getDb = () => {
   const pool = createPool();
-  let connectionString = process.env.DATABASE_URL?.trim();
-  if (connectionString) {
-    return drizzleNeon(pool, { schema });
-  }
-  return drizzlePg(pool, { schema });
+  return drizzle(pool, { schema });
 };
 
 export const db = new Proxy({} as any, {

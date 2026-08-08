@@ -11,7 +11,7 @@ let dbCredentials: any;
 if (connectionString) {
   dbCredentials = {
     url: connectionString,
-    ssl: connectionString.includes('neon.tech') ? { rejectUnauthorized: false } : false,
+    ssl: { rejectUnauthorized: false },
   };
 } else {
   const sqlHost = process.env.SQL_HOST;
