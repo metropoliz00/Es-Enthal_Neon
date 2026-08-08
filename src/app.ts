@@ -45,16 +45,30 @@ async function safeUpsert(supabase: any, table: string, recordOrList: any, optio
 
   while (error && retryCount < 5) {
     msg = String(error.message || error.details || error.hint || '');
-    if (msg.includes("Could not find the") || msg.includes("column") || msg.includes("schema cache")) {
-      const match = msg.match(/Could not find the '([^']+)' column/i);
-      if (match && match[1]) {
-        const missingCol = match[1];
-        console.warn(`Column '${missingCol}' missing in table '${table}'. Retrying without column '${missingCol}'...`);
+
+    if (msg.includes("Could not find the") || msg.includes("column") || msg.includes("schema cache") || msg.includes("jenis_ujian")) {
+      const match = msg.match(/Could not find the '([^']+)' column/i) || msg.match(/column "([^"]+)"/i) || msg.match(/Column '([^']+)'/i);
+      const missingCol = match && match[1] ? match[1] : (msg.includes('jenis_ujian') ? 'jenis_ujian' : '');
+
+      if (missingCol) {
+        // Try RPC alter table if supported by Supabase setup
+        try {
+          const { error: rpcErr } = await supabase.rpc('exec_sql', { sql_query: `ALTER TABLE public.${table} ADD COLUMN IF NOT EXISTS ${missingCol} TEXT;` });
+          if (!rpcErr) {
+            let retryWithCol = await supabase.from(table).upsert(item, options);
+            if (!retryWithCol.error) return;
+          }
+        } catch (_) {
+          // ignore if rpc exec_sql is not available
+        }
+
+        // Strip the missing column from item (array or object) and retry
         if (Array.isArray(item)) {
           item.forEach(r => delete r[missingCol]);
         } else {
           delete item[missingCol];
         }
+
         let retry = await supabase.from(table).upsert(item, options);
         if (!retry.error) return;
         error = retry.error;
@@ -64,8 +78,12 @@ async function safeUpsert(supabase: any, table: string, recordOrList: any, optio
     }
     
     // Fallback for known optional columns if specific column name wasn't matched
-    if (!Array.isArray(item) && 'jenis_ujian' in item) {
-      delete item.jenis_ujian;
+    if (msg.includes('jenis_ujian') || (Array.isArray(item) ? item.some(r => 'jenis_ujian' in r) : 'jenis_ujian' in item)) {
+      if (Array.isArray(item)) {
+        item.forEach(r => delete r.jenis_ujian);
+      } else {
+        delete item.jenis_ujian;
+      }
       let retry = await supabase.from(table).upsert(item, options);
       if (!retry.error) return;
       error = retry.error;

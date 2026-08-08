@@ -535,6 +535,7 @@ export const api = {
               tp_id: q.tp_id, 
               caption: q.caption,
               jenis_ujian: q.jenis_ujian,
+              kode_paket: q.kode_paket,
               options: (q.options || []).map((o: any) => ({
                   id: o.id,
                   question_id: o.question_id,
@@ -584,7 +585,7 @@ export const api = {
                   kelas: q.kelas || '',
                   tp_id: q.tp_id || '',
                   jenis_ujian: q.jenis_ujian || '',
-                  kode_paket: '',
+                  kode_paket: q.kode_paket || '',
                   mapel: subject
               };
           });
@@ -617,7 +618,8 @@ export const api = {
               caption: data.caption || null,
               kelas: data.kelas || null,
               tp_id: data.tp_id || null,
-              jenis_ujian: data.jenis_ujian || null
+              jenis_ujian: data.jenis_ujian || null,
+              kode_paket: data.kode_paket || null
           };
 
           const res = await fetch("/api/questions", {
@@ -658,7 +660,8 @@ export const api = {
                       caption: data.caption || null,
                       kelas: data.kelas || null,
                       tp_id: data.tp_id || null,
-                      jenis_ujian: data.jenis_ujian || null
+                      jenis_ujian: data.jenis_ujian || null,
+                      kode_paket: data.kode_paket || null
                   },
                   optionsList
               };
