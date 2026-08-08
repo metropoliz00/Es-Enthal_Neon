@@ -293,61 +293,76 @@ const BankSoalTab = () => {
                      return;
                 }
 
-                const headers = (data[0] as string[]).map(h => String(h).trim());
-                const findHeader = (name: string) => headers.findIndex(h => h.toLowerCase() === name.toLowerCase());
+                const headers = (data[0] as string[]).map(h => String(h || "").trim());
+                const findHeader = (...names: string[]) => {
+                    for (const name of names) {
+                        const idx = headers.findIndex(h => {
+                            const lowerH = h.toLowerCase();
+                            const lowerN = name.toLowerCase();
+                            return lowerH === lowerN || lowerH.includes(lowerN);
+                        });
+                        if (idx !== -1) return idx;
+                    }
+                    return -1;
+                };
 
-                const idxId = findHeader("ID Soal");
-                const useHeaders = idxId !== -1;
-
-                const idxText = findHeader("Teks Soal");
-                const idxTipe = findHeader("Tipe Soal (PG/PGK/BS)");
-                const idxGambar = findHeader("Link Gambar");
-                const idxOpsiA = findHeader("Opsi A");
-                const idxOpsiB = findHeader("Opsi B");
-                const idxOpsiC = findHeader("Opsi C");
-                const idxOpsiD = findHeader("Opsi D");
-                const idxKunci = findHeader("Kunci Jawaban");
-                const idxBobot = findHeader("Bobot");
+                const idxId = findHeader("ID Soal", "ID", "No Soal", "Nomor Soal", "No.", "No");
+                const idxText = findHeader("Teks Soal", "Pertanyaan / Soal", "Pertanyaan", "Teks", "Soal");
+                const idxTipe = findHeader("Tipe Soal (PG/PGK/BS)", "Tipe Soal", "Tipe", "Jenis Soal");
+                const idxGambar = findHeader("Link Gambar", "Gambar", "Foto", "Url Gambar");
+                const idxOpsiA = findHeader("Opsi A", "Pilihan A", "A");
+                const idxOpsiB = findHeader("Opsi B", "Pilihan B", "B");
+                const idxOpsiC = findHeader("Opsi C", "Pilihan C", "C");
+                const idxOpsiD = findHeader("Opsi D", "Pilihan D", "D");
+                const idxKunci = findHeader("Kunci Jawaban", "Kunci", "Jawaban Benar", "Jawaban");
+                const idxBobot = findHeader("Bobot", "Poin", "Nilai");
                 const idxKelas = findHeader("Kelas");
-                const idxTp = findHeader("ID TP");
-                const idxCaption = findHeader("Caption (Keterangan Gambar)");
-                const idxJenis = findHeader("Jenis Ujian");
-                const idxPaket = findHeader("Kode Paket Soal");
-                const idxMapel = findHeader("Kategori Mapel") !== -1 ? findHeader("Kategori Mapel") : findHeader("Mapel");
-                
+                const idxTp = findHeader("ID TP", "TP", "Tujuan Pembelajaran");
+                const idxCaption = findHeader("Caption (Keterangan Gambar)", "Caption", "Keterangan Gambar");
+                const idxJenis = findHeader("Jenis Ujian", "Ujian", "Kategori Ujian");
+                const idxPaket = findHeader("Kode Paket Soal", "Kode Paket", "Paket");
+                const idxMapel = findHeader("Kategori Mapel", "Mapel", "Mata Pelajaran", "Kategori");
+
+                const useHeaders = idxText !== -1 || idxId !== -1;
+
                 const parsedQuestions: QuestionRow[] = [];
                 for (let i = 1; i < data.length; i++) {
                     const row: any = data[i];
+                    if (!row || row.length === 0) continue;
                     
                     if (useHeaders) {
-                        if (!row[idxId]) continue;
-                        const val = (idx: number) => idx !== -1 ? row[idx] : undefined;
+                        const val = (idx: number) => (idx !== -1 && row[idx] !== undefined) ? String(row[idx]).trim() : "";
                         
-                        const jenisUjian = String(val(idxJenis) || "").toUpperCase();
+                        const textSoal = val(idxText);
+                        const rowId = val(idxId) || `Q${i}`;
+                        
+                        if (!textSoal && !val(idxOpsiA)) continue;
+
+                        const jenisUjian = val(idxJenis).toUpperCase();
                         
                         parsedQuestions.push({
-                            id: String(val(idxId)),
-                            text_soal: String(val(idxText) || ""),
-                            tipe_soal: (String(val(idxTipe) || "PG").toUpperCase() as any),
-                            gambar: String(val(idxGambar) || ""),
-                            opsi_a: String(val(idxOpsiA) || ""),
-                            opsi_b: String(val(idxOpsiB) || ""),
-                            opsi_c: String(val(idxOpsiC) || ""),
-                            opsi_d: String(val(idxOpsiD) || ""),
-                            kunci_jawaban: String(val(idxKunci) || "").toUpperCase(),
-                            bobot: Number(val(idxBobot) || 10),
-                            kelas: String(val(idxKelas) || ""),
-                            tp_id: jenisUjian.includes('SUMATIF') ? String(val(idxTp) || "") : "",
-                            caption: String(val(idxCaption) || ""),
+                            id: rowId,
+                            text_soal: textSoal || "Soal " + i,
+                            tipe_soal: (val(idxTipe).toUpperCase() as any) || "PG",
+                            gambar: val(idxGambar),
+                            opsi_a: val(idxOpsiA),
+                            opsi_b: val(idxOpsiB),
+                            opsi_c: val(idxOpsiC),
+                            opsi_d: val(idxOpsiD),
+                            kunci_jawaban: val(idxKunci).toUpperCase(),
+                            bobot: Number(val(idxBobot)) || 10,
+                            kelas: val(idxKelas),
+                            tp_id: jenisUjian.includes('SUMATIF') ? val(idxTp) : "",
+                            caption: val(idxCaption),
                             jenis_ujian: jenisUjian,
-                            kode_paket: String(val(idxPaket) || ""),
-                            mapel: String(val(idxMapel) || selectedSubject)
+                            kode_paket: val(idxPaket),
+                            mapel: val(idxMapel) || selectedSubject
                         });
                     } else {
-                        if (!row[0]) continue;
+                        if (!row[0] && !row[1]) continue;
                         parsedQuestions.push({
-                            id: String(row[0]),
-                            text_soal: String(row[1] || ""),
+                            id: String(row[0] || `Q${i}`),
+                            text_soal: String(row[1] || `Soal ${i}`),
                             tipe_soal: (String(row[2] || "PG").toUpperCase() as any),
                             gambar: String(row[3] || ""),
                             opsi_a: String(row[4] || ""),

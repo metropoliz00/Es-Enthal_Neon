@@ -35,6 +35,18 @@ const stringToUuid = (str: string): string => {
     return `${h1}-4b3a-8c9d-a123-${h2}`;
 };
 
+const createOptionUuid = (qId: string, idx: number): string => {
+    const idxHex = idx.toString(16).padStart(8, '0');
+    let hash2 = 0;
+    for (let i = 0; i < qId.length; i++) {
+        const ch = qId.charCodeAt(i);
+        hash2 = (hash2 << 7) - hash2 + ch;
+        hash2 |= 0;
+    }
+    const h2 = Math.abs(hash2).toString(16).padStart(12, '0').slice(0, 12);
+    return `${idxHex}-4b3a-8c9d-a123-${h2}`;
+};
+
 // Helpers to encode/decode roles for database constraint users_role_check
 const encodeUserForDb = (userData: any): any => {
     const validDbRoles = ['admin', 'Guru', 'siswa'];
@@ -451,10 +463,10 @@ export const api = {
 
           const keys = (data.kunci_jawaban || '').toUpperCase();
           const optionsList = [
-              { question_id: qId, text_jawaban: data.opsi_a || '', is_correct: keys.includes('A') },
-              { question_id: qId, text_jawaban: data.opsi_b || '', is_correct: keys.includes('B') },
-              { question_id: qId, text_jawaban: data.opsi_c || '', is_correct: keys.includes('C') },
-              { question_id: qId, text_jawaban: data.opsi_d || '', is_correct: keys.includes('D') }
+              { id: createOptionUuid(qId, 0), question_id: qId, text_jawaban: data.opsi_a || '', is_correct: keys.includes('A') },
+              { id: createOptionUuid(qId, 1), question_id: qId, text_jawaban: data.opsi_b || '', is_correct: keys.includes('B') },
+              { id: createOptionUuid(qId, 2), question_id: qId, text_jawaban: data.opsi_c || '', is_correct: keys.includes('C') },
+              { id: createOptionUuid(qId, 3), question_id: qId, text_jawaban: data.opsi_d || '', is_correct: keys.includes('D') }
           ].filter(opt => opt.text_jawaban.trim().length > 0 || opt.is_correct);
 
           const question = {
@@ -490,10 +502,10 @@ export const api = {
               const qId = stringToUuid(data.id ? (data.id.includes('-') ? data.id : `${targetSubject}_${data.id}`) : `${targetSubject}_q_${Date.now()}_${Math.random()}`);
               const keys = (data.kunci_jawaban || '').toUpperCase();
               const optionsList = [
-                  { question_id: qId, text_jawaban: data.opsi_a || '', is_correct: keys.includes('A') },
-                  { question_id: qId, text_jawaban: data.opsi_b || '', is_correct: keys.includes('B') },
-                  { question_id: qId, text_jawaban: data.opsi_c || '', is_correct: keys.includes('C') },
-                  { question_id: qId, text_jawaban: data.opsi_d || '', is_correct: keys.includes('D') }
+                  { id: createOptionUuid(qId, 0), question_id: qId, text_jawaban: data.opsi_a || '', is_correct: keys.includes('A') },
+                  { id: createOptionUuid(qId, 1), question_id: qId, text_jawaban: data.opsi_b || '', is_correct: keys.includes('B') },
+                  { id: createOptionUuid(qId, 2), question_id: qId, text_jawaban: data.opsi_c || '', is_correct: keys.includes('C') },
+                  { id: createOptionUuid(qId, 3), question_id: qId, text_jawaban: data.opsi_d || '', is_correct: keys.includes('D') }
               ].filter(opt => opt.text_jawaban.trim().length > 0 || opt.is_correct);
 
               return {

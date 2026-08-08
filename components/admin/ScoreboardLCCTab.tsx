@@ -926,7 +926,12 @@ export const ScoreboardLCCTab: React.FC<ScoreboardLCCTabProps> = ({ forceScorebo
                 importedQuestions.sort((a, b) => a.nomorSoal - b.nomorSoal);
                 
                 setQuestions(importedQuestions);
-                showToast(`Berhasil mengimpor ${importedQuestions.length} soal dari Excel!`, 'success');
+                const saveRes = await api.saveLccQuestions(importedQuestions);
+                if (saveRes.success) {
+                    showToast(`Berhasil mengimpor & menyimpan ${importedQuestions.length} soal ke database!`, 'success');
+                } else {
+                    showToast(`Soal diimpor (${importedQuestions.length} soal) namun gagal disimpan ke database.`, 'warning');
+                }
             } catch (err) {
                 console.error('Import error:', err);
                 showToast('Gagal mengimpor file Excel. Pastikan format file sesuai.', 'error');
