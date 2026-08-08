@@ -555,12 +555,12 @@ const DaftarPesertaTab = ({ currentUser, onDataChange, mode = 'siswa', onSwitchU
                              <th className="p-4 border-r border-slate-200 text-center">Kelas</th>
                              <th className="p-4 border-r border-slate-200">Sekolah</th>
                              <th className="p-4 border-r border-slate-200">Kecamatan</th>
-                             <th className="p-4 border-r border-slate-200 min-w-[150px]">Jenis Ujian</th>
+                             {mode !== 'staff' && <th className="p-4 border-r border-slate-200 min-w-[150px]">Jenis Ujian</th>}
                              <th className="p-4 text-center">Aksi</th>
                          </tr>
                      </thead>
                      <tbody className="divide-y divide-slate-100 bg-white">
-                         {loading ? (<tr><td colSpan={12} className="p-12 text-center text-slate-400"><Loader2 className="animate-spin inline mr-2"/> Sinkronisasi Database...</td></tr>) : filteredUsers.length === 0 ? (<tr><td colSpan={12} className="p-12 text-center text-slate-400 italic">Data tidak ditemukan.</td></tr>) : (filteredUsers.map((u, i) => (
+                         {loading ? (<tr><td colSpan={mode === 'staff' ? 11 : 12} className="p-12 text-center text-slate-400"><Loader2 className="animate-spin inline mr-2"/> Sinkronisasi Database...</td></tr>) : filteredUsers.length === 0 ? (<tr><td colSpan={mode === 'staff' ? 11 : 12} className="p-12 text-center text-slate-400 italic">Data tidak ditemukan.</td></tr>) : (filteredUsers.map((u, i) => (
                          <tr key={i} className="hover:bg-slate-50 transition group">
                              <td className="p-3 border-r border-slate-100 font-mono text-slate-400 font-bold">{u.display_id}</td>
                              <td className="p-3 border-r border-slate-100 text-center">
@@ -604,17 +604,19 @@ const DaftarPesertaTab = ({ currentUser, onDataChange, mode = 'siswa', onSwitchU
                              </td>
                              <td className="p-3 border-r border-slate-100 text-slate-600 font-medium">{getSchoolOnly(u.school) || '-'}</td>
                              <td className="p-3 border-r border-slate-100 text-slate-500">{u.kecamatan || '-'}</td>
-                             <td className="p-3 border-r border-slate-100">
-                                 <div className="flex flex-wrap gap-1.5">
-                                     {u.exam_type ? (
-                                         <span className="px-2 py-1 rounded-lg text-[9px] font-black uppercase bg-indigo-600 text-white border border-indigo-600 shadow-sm">
-                                             {examTypes.find(t => t.id === u.exam_type)?.label || u.exam_type}
-                                         </span>
-                                     ) : (
-                                         <span className="text-slate-300 italic text-[10px]">Belum diatur</span>
-                                     )}
-                                 </div>
-                             </td>
+                             {mode !== 'staff' && (
+                                 <td className="p-3 border-r border-slate-100">
+                                     <div className="flex flex-wrap gap-1.5">
+                                         {u.exam_type ? (
+                                             <span className="px-2 py-1 rounded-lg text-[9px] font-black uppercase bg-indigo-600 text-white border border-indigo-600 shadow-sm">
+                                                 {examTypes.find(t => t.id === u.exam_type)?.label || u.exam_type}
+                                             </span>
+                                         ) : (
+                                             <span className="text-slate-300 italic text-[10px]">Belum diatur</span>
+                                         )}
+                                     </div>
+                                 </td>
+                             )}
                              <td className="p-3 flex justify-center gap-2">
                                  {/* SUPER ADMIN LOGIN AS FEATURE (Works for both Students and Teachers lists) */}
                                  {currentUser.role === 'admin' && (
@@ -752,29 +754,31 @@ const DaftarPesertaTab = ({ currentUser, onDataChange, mode = 'siswa', onSwitchU
                                         </select>
                                     )}
                                 </div>
-                                <div>
-                                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Jenis Ujian</label>
-                                    <select 
-                                        className="w-full p-3 bg-white border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500" 
-                                        value={formData.exam_type} 
-                                        onChange={e => setFormData({...formData, exam_type: e.target.value})}
-                                        disabled={currentUser.role === 'Operator Kecamatan'}
-                                    >
-                                        {currentUser.role === 'Operator Kecamatan' ? (
-                                            <option value="LCC">Lomba Cerdas Cermat</option>
-                                        ) : currentUser.role === 'Proktor Sekolah' ? (
-                                            <>
-                                                <option value="OSN">OSN</option>
-                                                <option value="TKA">TKA</option>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <option value="">-- Tidak Ada --</option>
-                                                {examTypes.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                                            </>
-                                        )}
-                                    </select>
-                                </div>
+                                {mode !== 'staff' && (
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Jenis Ujian</label>
+                                        <select 
+                                            className="w-full p-3 bg-white border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500" 
+                                            value={formData.exam_type} 
+                                            onChange={e => setFormData({...formData, exam_type: e.target.value})}
+                                            disabled={currentUser.role === 'Operator Kecamatan'}
+                                        >
+                                            {currentUser.role === 'Operator Kecamatan' ? (
+                                                <option value="LCC">Lomba Cerdas Cermat</option>
+                                            ) : currentUser.role === 'Proktor Sekolah' ? (
+                                                <>
+                                                    <option value="OSN">OSN</option>
+                                                    <option value="TKA">TKA</option>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <option value="">-- Tidak Ada --</option>
+                                                    {examTypes.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                                                </>
+                                            )}
+                                        </select>
+                                    </div>
+                                )}
 
                                 <div className="grid grid-cols-2 gap-4">
                                     <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Sekolah</label><input required type="text" className="w-full p-3 bg-white border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500" value={formData.school} onChange={e => setFormData({...formData, school: e.target.value})} placeholder="Nama Sekolah" /></div>

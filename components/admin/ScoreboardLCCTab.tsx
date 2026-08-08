@@ -2617,15 +2617,7 @@ export const ScoreboardLCCTab: React.FC<ScoreboardLCCTabProps> = ({ forceScorebo
                                                                     >
                                                                         Buka
                                                                     </button>
-                                                                    <button
-                                                                        onClick={() => handleSaveSingleLccQuestion(q)}
-                                                                        disabled={savingLccId === q.id}
-                                                                        className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition font-bold text-[10px] flex items-center gap-1 disabled:opacity-50"
-                                                                        title="Simpan Soal Ini ke Database"
-                                                                    >
-                                                                        {savingLccId === q.id ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-                                                                        <span>Simpan</span>
-                                                                    </button>
+
                                                                     <button
                                                                         onClick={() => startEditQuestion(q)}
                                                                         className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition"

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Clock, Check, ChevronLeft, ChevronRight, LayoutGrid, Flag, Monitor, LogOut, Loader2, AlertTriangle, X, ShieldAlert, RotateCcw, ZoomIn, ZoomOut, Maximize, Move, HelpCircle, User, Type, Users, Bell } from 'lucide-react';
+import { Clock, Check, ChevronLeft, ChevronRight, LayoutGrid, Flag, Monitor, LogOut, Loader2, AlertTriangle, X, ShieldAlert, RotateCcw, ZoomIn, ZoomOut, Maximize, Move, HelpCircle, User, Type, Users, Bell, Edit3 } from 'lucide-react';
 import { isBereguExamType } from '../utils/adminHelpers';
 import LccReguBuzzerView from './LccReguBuzzerView';
 
@@ -213,6 +213,9 @@ const StudentExam: React.FC<StudentExamProps> = ({ exam, questions, userFullName
           if (type === 'BS' && subId) {
              const currentObj = (prev[qId] as Record<string, boolean>) || {};
              return { ...prev, [qId]: { ...currentObj, [subId]: val } };
+          }
+          if (type === 'URAIAN') {
+             return { ...prev, [qId]: val };
           }
           return prev;
       });
@@ -465,6 +468,24 @@ const StudentExam: React.FC<StudentExamProps> = ({ exam, questions, userFullName
                                                         })}
                                                     </tbody>
                                                 </table>
+                                            </div>
+                                        )}
+
+                                        {/* SOAL URAIAN / ESSAY */}
+                                        {currentQ.tipe_soal === 'URAIAN' && (
+                                            <div className="bg-white p-5 rounded-2xl border-2 border-slate-200 focus-within:border-indigo-600 focus-within:ring-2 focus-within:ring-indigo-100 transition-all shadow-sm">
+                                                <label className="text-xs font-bold text-slate-500 uppercase block mb-3 flex items-center gap-2">
+                                                    <Edit3 size={16} className="text-indigo-600"/>
+                                                    Jawaban Uraian Anda:
+                                                </label>
+                                                <textarea
+                                                    rows={6}
+                                                    className="w-full outline-none font-medium text-slate-800 text-sm md:text-base leading-relaxed bg-slate-50/70 p-4 rounded-xl border border-slate-200 focus:bg-white resize-y transition-all"
+                                                    placeholder="Tuliskan jawaban uraian Anda secara lengkap di sini..."
+                                                    value={(answers[currentQ.id] as string) || ''}
+                                                    onChange={(e) => handleAnswer(e.target.value, 'URAIAN')}
+                                                />
+                                                <p className="text-[11px] text-slate-400 mt-2 italic">Jawaban Anda akan tersimpan secara otomatis.</p>
                                             </div>
                                         )}
                                     </div>

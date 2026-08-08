@@ -108,9 +108,12 @@ const CetakKartuTab = ({ currentUser, students, schedules }: { currentUser: User
             const isBeregu = isBereguExamType(s.exam_type);
             const displayExamType = isBeregu ? 'LOMBA CERDAS CERMAT' : (s.exam_type || 'ASSESMENT SUMATIF');
             const eventOrganizer = appConfig['SCHOOL_NAME'] || 'EXAMORA DEVELOPMENT ASSESMENT';
+            const kecFormatted = s.kecamatan && s.kecamatan !== '-' 
+                ? (s.kecamatan.trim().toUpperCase().startsWith('KECAMATAN') ? s.kecamatan.trim().toUpperCase() : `KECAMATAN ${s.kecamatan.trim().toUpperCase()}`)
+                : '';
             const displaySchoolHeader = isBeregu
-                ? `${eventOrganizer}${s.kecamatan && s.kecamatan !== '-' ? ` - ${s.kecamatan}` : ''}`
-                : `${s.school || '-'} - ${s.kecamatan || '-'}`;
+                ? `${eventOrganizer}${kecFormatted ? ` - ${kecFormatted}` : ''}`
+                : `${s.school || '-'}${kecFormatted ? ` - ${kecFormatted}` : ''}`;
 
             let infoRowsHtml = '';
             
@@ -362,9 +365,12 @@ const CetakKartuTab = ({ currentUser, students, schedules }: { currentUser: User
                         const isBeregu = isBereguExamType(s.exam_type);
                         const displayExamType = isBeregu ? 'LOMBA CERDAS CERMAT' : (s.exam_type || 'ASSESMENT SUMATIF');
                         const eventOrganizer = appConfig['SCHOOL_NAME'] || 'EXAMORA DEVELOPMENT ASSESMENT';
+                        const kecFormatted = s.kecamatan && s.kecamatan !== '-' 
+                            ? (s.kecamatan.trim().toUpperCase().startsWith('KECAMATAN') ? s.kecamatan.trim().toUpperCase() : `KECAMATAN ${s.kecamatan.trim().toUpperCase()}`)
+                            : '';
                         const displaySchoolHeader = isBeregu
-                            ? `${eventOrganizer}${s.kecamatan && s.kecamatan !== '-' ? ` - ${s.kecamatan}` : ''}`
-                            : `${s.school || '-'} - ${s.kecamatan || '-'}`;
+                            ? `${eventOrganizer}${kecFormatted ? ` - ${kecFormatted}` : ''}`
+                            : `${s.school || '-'}${kecFormatted ? ` - ${kecFormatted}` : ''}`;
 
                         return (
                             <div key={idx} className="bg-white border border-slate-400 p-1.5 rounded-sm shadow-sm flex flex-col gap-1 relative text-[10px] mx-auto overflow-hidden" 

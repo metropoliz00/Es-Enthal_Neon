@@ -23,6 +23,62 @@ async function runWithSupabaseFallback<T>(
   throw new Error("Supabase belum dikonfigurasi. Silakan atur SUPABASE_URL dan SUPABASE_ANON_KEY di Environment Variables.");
 }
 
+// Helper to safely upsert records into Supabase, automatically handling missing table columns in schema cache
+async function safeUpsert(supabase: any, table: string, recordOrList: any, options?: any) {
+  if (!recordOrList) return;
+  let item = Array.isArray(recordOrList) 
+    ? recordOrList.map(r => ({ ...r })) 
+    : { ...recordOrList };
+  
+  // Strip undefined values
+  if (Array.isArray(item)) {
+    item.forEach(r => Object.keys(r).forEach(k => r[k] === undefined && delete r[k]));
+  } else {
+    Object.keys(item).forEach(k => item[k] === undefined && delete item[k]);
+  }
+
+  let { error } = await supabase.from(table).upsert(item, options);
+  if (!error) return;
+
+  let msg = String(error.message || error.details || error.hint || '');
+  let retryCount = 0;
+
+  while (error && retryCount < 5) {
+    msg = String(error.message || error.details || error.hint || '');
+    if (msg.includes("Could not find the") || msg.includes("column") || msg.includes("schema cache")) {
+      const match = msg.match(/Could not find the '([^']+)' column/i);
+      if (match && match[1]) {
+        const missingCol = match[1];
+        console.warn(`Column '${missingCol}' missing in table '${table}'. Retrying without column '${missingCol}'...`);
+        if (Array.isArray(item)) {
+          item.forEach(r => delete r[missingCol]);
+        } else {
+          delete item[missingCol];
+        }
+        let retry = await supabase.from(table).upsert(item, options);
+        if (!retry.error) return;
+        error = retry.error;
+        retryCount++;
+        continue;
+      }
+    }
+    
+    // Fallback for known optional columns if specific column name wasn't matched
+    if (!Array.isArray(item) && 'jenis_ujian' in item) {
+      delete item.jenis_ujian;
+      let retry = await supabase.from(table).upsert(item, options);
+      if (!retry.error) return;
+      error = retry.error;
+      retryCount++;
+      continue;
+    }
+
+    break;
+  }
+
+  if (error) throw error;
+}
+
 // --- API ROUTES ---
 
 // Health & DB Connection Check Endpoint
@@ -190,8 +246,7 @@ app.post("/api/exams/ensure", async (req, res) => {
   };
   try {
     await runWithSupabaseFallback(null, async (supabase) => {
-        const { error } = await supabase.from('exams').upsert(examData, { onConflict: 'id' });
-        if (error) throw error;
+        await safeUpsert(supabase, 'exams', examData, { onConflict: 'id' });
       }
     );
     res.json({ success: true });
@@ -230,8 +285,7 @@ const saveAppConfigHandler = async (req: express.Request, res: express.Response)
     await runWithSupabaseFallback(null, async (supabase) => {
         const valid = updates.filter((item: any) => item && item.key).map((item: any) => ({ key: item.key, value: item.value || "" }));
         if (valid.length > 0) {
-          const { error } = await supabase.from('app_config').upsert(valid, { onConflict: 'key' });
-          if (error) throw error;
+          await safeUpsert(supabase, 'app_config', valid, { onConflict: 'key' });
         }
       }
     );
@@ -268,8 +322,7 @@ app.post("/api/user-config", async (req, res) => {
   try {
     await runWithSupabaseFallback(null, async (supabase) => {
         if (updates && updates.length > 0) {
-          const { error } = await supabase.from('user_config').upsert(updates);
-          if (error) throw error;
+          await safeUpsert(supabase, 'user_config', updates);
         }
       }
     );
@@ -311,8 +364,7 @@ app.post("/api/questions", async (req, res) => {
   const { question, optionsList } = req.body;
   try {
     await runWithSupabaseFallback(null, async (supabase) => {
-        const { error: qErr } = await supabase.from('questions').upsert(question, { onConflict: 'id' });
-        if (qErr) throw qErr;
+        await safeUpsert(supabase, 'questions', question, { onConflict: 'id' });
 
         await supabase.from('options').delete().eq('question_id', question.id);
 
@@ -336,8 +388,7 @@ app.post("/api/questions/import", async (req, res) => {
   try {
     await runWithSupabaseFallback(null, async (supabase) => {
         for (const item of list) {
-          const { error: qErr } = await supabase.from('questions').upsert(item.question, { onConflict: 'id' });
-          if (qErr) throw qErr;
+          await safeUpsert(supabase, 'questions', item.question, { onConflict: 'id' });
 
           await supabase.from('options').delete().eq('question_id', item.question.id);
           if (item.optionsList && item.optionsList.length > 0) {
@@ -392,8 +443,7 @@ app.post("/api/users", async (req, res) => {
   const { user, existingId } = req.body;
   try {
     await runWithSupabaseFallback(null, async (supabase) => {
-        const { error } = await supabase.from('users').upsert(user, { onConflict: 'username' });
-        if (error) throw error;
+        await safeUpsert(supabase, 'users', user, { onConflict: 'username' });
       }
     );
     res.json({ success: true });
@@ -424,8 +474,7 @@ app.post("/api/users/import", async (req, res) => {
   const { mappedUsers } = req.body;
   try {
     await runWithSupabaseFallback(null, async (supabase) => {
-        const { error } = await supabase.from('users').upsert(mappedUsers, { onConflict: 'username' });
-        if (error) throw error;
+        await safeUpsert(supabase, 'users', mappedUsers, { onConflict: 'username' });
       }
     );
     res.json({ success: true });
@@ -480,8 +529,7 @@ app.post("/api/learning-objectives", async (req, res) => {
   const data = req.body;
   try {
     await runWithSupabaseFallback(null, async (supabase) => {
-        const { error } = await supabase.from('learning_objectives').upsert(data, { onConflict: 'id' });
-        if (error) throw error;
+        await safeUpsert(supabase, 'learning_objectives', data, { onConflict: 'id' });
       }
     );
     res.json({ success: true });
@@ -512,8 +560,7 @@ app.post("/api/learning-objectives/import", async (req, res) => {
   const { list } = req.body;
   try {
     await runWithSupabaseFallback(null, async (supabase) => {
-        const { error } = await supabase.from('learning_objectives').upsert(list, { onConflict: 'id' });
-        if (error) throw error;
+        await safeUpsert(supabase, 'learning_objectives', list, { onConflict: 'id' });
       }
     );
     res.json({ success: true });
@@ -667,13 +714,47 @@ app.post("/api/external-grades", async (req, res) => {
   const { list } = req.body;
   try {
     await runWithSupabaseFallback(null, async (supabase) => {
-        const { error } = await supabase.from('external_grades').upsert(list);
-        if (error) throw error;
+        await safeUpsert(supabase, 'external_grades', list);
       }
     );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Save grades failed:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 29b. Grade Essay (Koreksi Soal Uraian)
+app.post("/api/grade-essay", async (req, res) => {
+  const { student_exam_id, user_id, exam_id, score, answers_scores } = req.body;
+  try {
+    await runWithSupabaseFallback(null, async (supabase) => {
+      if (student_exam_id) {
+        await supabase.from('student_exams').update({ nilai: score, nilai_akhir: score }).eq('id', student_exam_id);
+      } else if (user_id && exam_id) {
+        await supabase.from('student_exams').update({ nilai: score, nilai_akhir: score }).eq('user_id', user_id).eq('exam_id', exam_id);
+      }
+
+      if (user_id && exam_id) {
+        await safeUpsert(supabase, 'external_grades', [{
+          username: user_id,
+          mapel: exam_id,
+          exam_type: 'Sumatif Akhir Semester',
+          nilai: score
+        }]);
+      }
+
+      if (answers_scores && Array.isArray(answers_scores)) {
+        for (const ans of answers_scores) {
+          if (ans.id) {
+            await supabase.from('answers').update({ score: ans.score, feedback: ans.feedback }).eq('id', ans.id);
+          }
+        }
+      }
+    });
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("Grade essay failed:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -854,8 +935,7 @@ app.post("/api/lcc-questions", async (req, res) => {
   const q = req.body;
   try {
     await runWithSupabaseFallback(null, async (supabase) => {
-        const { error } = await supabase.from('lcc_questions').upsert(q, { onConflict: 'id' });
-        if (error) throw error;
+        await safeUpsert(supabase, 'lcc_questions', q, { onConflict: 'id' });
       }
     );
     res.json({ success: true });
@@ -921,8 +1001,7 @@ app.post("/api/lcc-config", async (req, res) => {
   const { config } = req.body;
   try {
     await runWithSupabaseFallback(null, async (supabase) => {
-        const { error } = await supabase.from('lcc_config').upsert({ key: "main", config }, { onConflict: 'key' });
-        if (error) throw error;
+        await safeUpsert(supabase, 'lcc_config', { key: "main", config }, { onConflict: 'key' });
       }
     );
     res.json({ success: true });

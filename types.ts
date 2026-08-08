@@ -33,7 +33,7 @@ export interface Exam {
 }
 
 // 3. Tabel Questions (Bank Soal)
-export type QuestionType = 'PG' | 'PGK' | 'BS' | 'LIKERT';
+export type QuestionType = 'PG' | 'PGK' | 'BS' | 'URAIAN' | 'LIKERT';
 
 export interface Question {
   id: string;

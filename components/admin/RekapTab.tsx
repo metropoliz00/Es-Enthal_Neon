@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
-import { LayoutDashboard, FileText, Loader2, RefreshCw, Printer, Grid, List, Edit3, Save, Upload, AlertCircle } from 'lucide-react';
+import { LayoutDashboard, FileText, Loader2, RefreshCw, Printer, Grid, List, Edit3, Save, Upload, AlertCircle, X, Check, Award, CheckCircle2, HelpCircle, BookOpen, FileCheck } from 'lucide-react';
 import { api } from '../../src/services/api';
 import { exportToExcel, formatDurationToText, getSubjects } from '../../utils/adminHelpers';
 import { User, ExternalGrade } from '../../types';
@@ -30,6 +30,113 @@ const RekapTab = ({ students, currentUser }: RekapTabProps) => {
     const [isEditMode, setIsEditMode] = useState(false);
     const [editedCells, setEditedCells] = useState<Record<string, { val: string, changed: boolean }>>({}); 
     // Key: username_columnKey (e.g. "user123_sumatif1")
+
+    // Koreksi Soal Uraian States
+    const [koreksiModalOpen, setKoreksiModalOpen] = useState(false);
+    const [selectedStudentExam, setSelectedStudentExam] = useState<any>(null);
+    const [loadingKoreksiData, setLoadingKoreksiData] = useState(false);
+    const [uraianQuestions, setUraianQuestions] = useState<any[]>([]);
+    const [studentAnswers, setStudentAnswers] = useState<Record<string, string>>({});
+    const [essayScores, setEssayScores] = useState<Record<string, number>>({});
+    const [autoScore, setAutoScore] = useState<number>(0);
+    const [savingKoreksi, setSavingKoreksi] = useState(false);
+
+    const openKoreksiModal = async (studentRow: any) => {
+        setSelectedStudentExam(studentRow);
+        setKoreksiModalOpen(true);
+        setLoadingKoreksiData(true);
+        setUraianQuestions([]);
+        setStudentAnswers({});
+        setEssayScores({});
+        
+        try {
+            const subject = studentRow.exam_id || filterSubject;
+            // 1. Fetch analysis for subject to get student answers
+            const analysisList = await api.getAnalysis(subject);
+            const studentExam = (analysisList || []).find((se: any) => 
+                (studentRow.id && se.id === studentRow.id) || 
+                (se.user_id === studentRow.username || se.username === studentRow.username)
+            );
+
+            // 2. Fetch raw questions for subject
+            const rawQs = await api.getRawQuestions(subject);
+            const urQs = (rawQs || []).filter((q: any) => q.tipe_soal === 'URAIAN');
+            setUraianQuestions(urQs);
+
+            // Map student answers & scores
+            const ansMap: Record<string, string> = {};
+            const scoreMap: Record<string, number> = {};
+
+            if (studentExam && studentExam.answers) {
+                studentExam.answers.forEach((ans: any) => {
+                    const qId = ans.question_id;
+                    ansMap[qId] = ans.option_id || ans.answer_text || '';
+                    if (ans.score !== undefined && ans.score !== null) {
+                        scoreMap[qId] = Number(ans.score);
+                    } else {
+                        scoreMap[qId] = 0;
+                    }
+                });
+            }
+
+            setStudentAnswers(ansMap);
+            setEssayScores(scoreMap);
+
+            // Calculate current base score from PG/PGK/BS (subtracting any essay score if already added)
+            const currentTotal = studentRow.nilai || 0;
+            const currentEssaySum = Object.values(scoreMap).reduce((a, b) => a + Number(b || 0), 0);
+            const baseAutoScore = Math.max(0, currentTotal - currentEssaySum);
+            setAutoScore(baseAutoScore);
+
+        } catch (err) {
+            console.error("Failed to load student exam answers:", err);
+            showToast("Gagal memuat jawaban siswa.", "error");
+        } finally {
+            setLoadingKoreksiData(false);
+        }
+    };
+
+    const handleSaveKoreksi = async () => {
+        if (!selectedStudentExam) return;
+        setSavingKoreksi(true);
+
+        try {
+            let totalEssayScore = 0;
+            const answersScoresPayload: any[] = [];
+
+            uraianQuestions.forEach(q => {
+                const sc = Number(essayScores[q.id]) || 0;
+                totalEssayScore += sc;
+                answersScoresPayload.push({
+                    question_id: q.id,
+                    score: sc
+                });
+            });
+
+            const finalScore = autoScore + totalEssayScore;
+
+            const res = await api.gradeEssay({
+                student_exam_id: selectedStudentExam.id,
+                user_id: selectedStudentExam.username,
+                exam_id: selectedStudentExam.exam_id || filterSubject,
+                score: finalScore,
+                answers_scores: answersScoresPayload
+            });
+
+            if (res.success) {
+                showToast("Hasil koreksi berhasil disimpan!", "success");
+                setKoreksiModalOpen(false);
+                fetchData();
+            } else {
+                showToast("Gagal menyimpan hasil koreksi.", "error");
+            }
+        } catch (err) {
+            console.error("Save koreksi error:", err);
+            showToast("Terjadi kesalahan saat menyimpan.", "error");
+        } finally {
+            setSavingKoreksi(false);
+        }
+    };
 
     // Create a robust map of users for quick lookup (Case Insensitive Key)
     const userMap = useMemo(() => {
@@ -717,11 +824,12 @@ const RekapTab = ({ students, currentUser }: RekapTabProps) => {
                                 <th className="p-4 text-center bg-indigo-50/50 border-b border-l border-slate-200">Mata Pelajaran</th>
                                 <th className="p-4 text-center border-b border-l border-slate-200 bg-emerald-50/50">Nilai Akhir</th>
                                 <th className="p-4 text-center border-b border-slate-200">Durasi</th>
+                                <th className="p-4 text-center border-b border-slate-200 bg-amber-50/50">Koreksi Uraian</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {filteredData.length === 0 ? (
-                                <tr><td colSpan={10} className="p-12 text-center text-slate-400 italic">Data tidak ditemukan untuk filter ini.</td></tr>
+                                <tr><td colSpan={11} className="p-12 text-center text-slate-400 italic">Data tidak ditemukan untuk filter ini.</td></tr>
                             ) : (
                                 filteredData.map((d, i) => {
                                     const usernameKey = String(d.username).toLowerCase().trim();
@@ -754,6 +862,15 @@ const RekapTab = ({ students, currentUser }: RekapTabProps) => {
                                         <td className="p-4 text-center text-xs text-slate-500 font-mono">
                                             {formatDurationToText(d.durasi)}
                                         </td>
+                                        <td className="p-4 text-center border-l border-slate-100 bg-amber-50/20">
+                                            <button 
+                                                onClick={() => openKoreksiModal(d)}
+                                                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white flex items-center gap-1.5 mx-auto transition shadow-sm active:scale-95 cursor-pointer"
+                                                title="Koreksi Jawaban Uraian Peserta"
+                                            >
+                                                <Edit3 size={13}/> Koreksi Uraian
+                                            </button>
+                                        </td>
                                     </tr>
                                     );
                                 })
@@ -767,6 +884,183 @@ const RekapTab = ({ students, currentUser }: RekapTabProps) => {
                 <span>{viewMode === 'matrix' ? `Menampilkan ${matrixData.length} siswa` : `Total Data: ${filteredData.length} record`}</span>
                 <span className="text-right">Database Hasil Ujian (Realtime) & Import</span>
             </div>
+
+            {/* MODAL KOREKSI SOAL URAIAN */}
+            {koreksiModalOpen && selectedStudentExam && (
+                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 overflow-y-auto animate-fadeIn">
+                    <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden">
+                        
+                        {/* Modal Header */}
+                        <div className="p-6 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 text-white flex items-center justify-between shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-white/20 backdrop-blur-md rounded-2xl">
+                                    <FileCheck size={24} className="text-white"/>
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-lg leading-tight">Koreksi Soal Uraian</h3>
+                                    <p className="text-xs text-amber-100 mt-0.5">
+                                        {selectedStudentExam.nama} ({selectedStudentExam.username}) — Mapel: {selectedStudentExam.exam_id || filterSubject}
+                                    </p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setKoreksiModalOpen(false)}
+                                className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition text-white"
+                            >
+                                <X size={20}/>
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="p-6 overflow-y-auto flex-1 space-y-6 bg-slate-50/50">
+                            {loadingKoreksiData ? (
+                                <div className="py-16 text-center space-y-3">
+                                    <Loader2 size={36} className="animate-spin text-amber-500 mx-auto"/>
+                                    <p className="text-sm font-bold text-slate-600">Memuat lembar jawaban uraian siswa...</p>
+                                </div>
+                            ) : uraianQuestions.length === 0 ? (
+                                <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-8 text-center space-y-2">
+                                    <AlertCircle size={32} className="text-amber-500 mx-auto"/>
+                                    <p className="font-bold text-slate-700 text-base">Tidak Ada Soal Uraian</p>
+                                    <p className="text-xs text-slate-500 max-w-md mx-auto">
+                                        Mata pelajaran <strong>"{selectedStudentExam.exam_id || filterSubject}"</strong> tidak memiliki soal jenis Uraian / Isian. Seluruh soal pada ujian ini telah dinilai secara otomatis.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="space-y-6">
+                                    <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200 flex items-center justify-between text-xs text-amber-900">
+                                        <div className="flex items-center gap-2">
+                                            <Award size={18} className="text-amber-600 shrink-0"/>
+                                            <span>Silakan periksa jawaban uraian siswa di bawah ini dan berikan nilai sesuai rubrik acuan.</span>
+                                        </div>
+                                        <span className="font-bold bg-amber-200/80 px-2.5 py-1 rounded-lg">
+                                            {uraianQuestions.length} Soal Uraian
+                                        </span>
+                                    </div>
+
+                                    {uraianQuestions.map((q, idx) => {
+                                        const ansText = studentAnswers[q.id] || '(Siswa tidak mengisi jawaban)';
+                                        const currentScore = essayScores[q.id] ?? 0;
+                                        
+                                        return (
+                                            <div key={q.id} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+                                                <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="w-7 h-7 rounded-xl bg-amber-500 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                                                            {idx + 1}
+                                                        </span>
+                                                        <span className="font-bold text-slate-700 text-sm">Soal Uraian #{idx + 1}</span>
+                                                    </div>
+                                                    <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
+                                                        Bobot Maksimal: {q.bobot}
+                                                    </span>
+                                                </div>
+
+                                                {/* Text Soal */}
+                                                <div className="text-slate-800 font-medium text-sm leading-relaxed bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                                                    {q.text_soal}
+                                                </div>
+
+                                                {/* Image if available */}
+                                                {q.gambar && (
+                                                    <div className="my-2">
+                                                        <img src={q.gambar} alt="Gambar Soal" className="max-h-48 rounded-xl border border-slate-200 object-contain" />
+                                                        {q.caption && <p className="text-xs text-slate-400 mt-1 italic">{q.caption}</p>}
+                                                    </div>
+                                                )}
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                                                    {/* Rubrik Acuan */}
+                                                    <div className="bg-emerald-50/70 p-4 rounded-xl border border-emerald-200/80 space-y-1.5">
+                                                        <p className="text-[11px] font-bold text-emerald-700 uppercase flex items-center gap-1.5">
+                                                            <CheckCircle2 size={13}/> Rubrik / Kunci Acuan Guru:
+                                                        </p>
+                                                        <p className="text-xs font-medium text-emerald-900 leading-relaxed whitespace-pre-wrap">
+                                                            {q.kunci_jawaban || '(Belum ada kunci acuan)'}
+                                                        </p>
+                                                    </div>
+
+                                                    {/* Jawaban Siswa */}
+                                                    <div className="bg-indigo-50/70 p-4 rounded-xl border border-indigo-200/80 space-y-1.5">
+                                                        <p className="text-[11px] font-bold text-indigo-700 uppercase flex items-center gap-1.5">
+                                                            <BookOpen size={13}/> Jawaban Siswa:
+                                                        </p>
+                                                        <p className={`text-xs font-medium leading-relaxed whitespace-pre-wrap ${studentAnswers[q.id] ? 'text-indigo-950' : 'text-slate-400 italic'}`}>
+                                                            {ansText}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Score Input */}
+                                                <div className="flex items-center justify-between bg-slate-50 p-3.5 rounded-xl border border-slate-200 mt-3">
+                                                    <label className="text-xs font-bold text-slate-700 flex items-center gap-2">
+                                                        <Award size={16} className="text-amber-500"/>
+                                                        Nilai Diberikan untuk Soal #{idx + 1}:
+                                                    </label>
+                                                    <div className="flex items-center gap-2">
+                                                        <input 
+                                                            type="number"
+                                                            min={0}
+                                                            max={q.bobot}
+                                                            value={currentScore}
+                                                            onChange={(e) => {
+                                                                const val = Math.min(q.bobot, Math.max(0, Number(e.target.value) || 0));
+                                                                setEssayScores(prev => ({ ...prev, [q.id]: val }));
+                                                            }}
+                                                            className="w-20 px-3 py-1.5 text-center font-bold text-slate-800 text-sm bg-white border border-slate-300 rounded-xl focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none"
+                                                        />
+                                                        <span className="text-xs font-bold text-slate-400">/ {q.bobot}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-6 bg-white border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0">
+                            <div className="flex items-center gap-4 text-xs">
+                                <div className="bg-slate-100 px-3 py-2 rounded-xl border border-slate-200">
+                                    <span className="text-slate-400 block text-[10px]">Nilai Pilihan/Auto</span>
+                                    <span className="font-bold text-slate-700 text-sm">{autoScore}</span>
+                                </div>
+                                <div className="bg-amber-50 px-3 py-2 rounded-xl border border-amber-200">
+                                    <span className="text-amber-600 block text-[10px]">Nilai Uraian</span>
+                                    <span className="font-bold text-amber-700 text-sm">
+                                        +{Object.values(essayScores).reduce((a, b) => a + Number(b || 0), 0)}
+                                    </span>
+                                </div>
+                                <div className="bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-200">
+                                    <span className="text-emerald-600 block text-[10px]">Total Nilai Akhir</span>
+                                    <span className="font-black text-emerald-700 text-base">
+                                        {autoScore + Object.values(essayScores).reduce((a, b) => a + Number(b || 0), 0)}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 w-full sm:w-auto">
+                                <button
+                                    onClick={() => setKoreksiModalOpen(false)}
+                                    className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-xs font-bold border border-slate-200 text-slate-600 hover:bg-slate-100 transition"
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    disabled={savingKoreksi || loadingKoreksiData || uraianQuestions.length === 0}
+                                    onClick={handleSaveKoreksi}
+                                    className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 active:scale-95 text-white shadow-md flex items-center justify-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {savingKoreksi ? <Loader2 size={16} className="animate-spin"/> : <Save size={16}/>}
+                                    Simpan Hasil Koreksi
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

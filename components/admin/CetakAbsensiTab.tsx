@@ -189,6 +189,10 @@ const CetakAbsensiTab = ({ currentUser, students }: { currentUser: User, student
             `;
         }).join('');
 
+        const kecamatanDisplay = !kecamatanName || kecamatanName === '-' 
+            ? 'Kecamatan' 
+            : (kecamatanName.toLowerCase().startsWith('kecamatan') ? kecamatanName : `Kecamatan ${kecamatanName}`);
+
         const htmlContent = `
             <!DOCTYPE html>
             <html>
@@ -218,8 +222,9 @@ const CetakAbsensiTab = ({ currentUser, students }: { currentUser: User, student
                 <div class="header-container">
                     ${logoLeftUrl !== transparentPixel ? `<img src="${logoLeftUrl}" class="header-logo" />` : `<div style="width: 65px;"></div>`}
                     <div class="header-text">
-                        <h2>DAFTAR HADIR PESERTA LOMBA CERDAS CERMAT</h2>
-                        <h3>${schoolName} - ${kecamatanName}</h3>
+                        <h2>DAFTAR HADIR PESERTA</h2>
+                        <h2>LOMBA CERDAS CERMAT</h2>
+                        <h3>${kecamatanDisplay}</h3>
                     </div>
                     ${logoRightUrl !== transparentPixel ? `<img src="${logoRightUrl}" class="header-logo" />` : `<div style="width: 65px;"></div>`}
                 </div>

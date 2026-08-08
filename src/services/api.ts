@@ -625,7 +625,8 @@ export const api = {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ question, optionsList })
           });
-          return { success: res.ok, message: res.ok ? 'Success' : 'Error saving question' };
+          const resData = await res.json().catch(() => ({}));
+          return { success: res.ok, message: res.ok ? 'Success' : (resData.error || 'Error saving question') };
       } catch (err: any) {
           console.error("Error in saveQuestion:", err);
           return { success: false, message: err.message || 'Error saving question' };
@@ -669,7 +670,9 @@ export const api = {
               body: JSON.stringify({ list })
           });
 
-          return { success: res.ok, message: res.ok ? 'Success' : 'Error importing questions' };
+          const resData = await res.json().catch(() => ({}));
+
+          return { success: res.ok, message: res.ok ? 'Success' : (resData.error || 'Error importing questions') };
       } catch (err: any) {
           console.error("Error in importQuestions:", err);
           return { success: false, message: err.message || 'Error importing questions' };
@@ -958,6 +961,20 @@ export const api = {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ list: data })
+          });
+          return { success: res.ok };
+      } catch (e) {
+          console.error(e);
+          return { success: false };
+      }
+  },
+
+  gradeEssay: async (payload: { student_exam_id?: string, user_id?: string, exam_id: string, score: number, answers_scores?: any[] }): Promise<{success: boolean}> => {
+      try {
+          const res = await fetch("/api/grade-essay", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload)
           });
           return { success: res.ok };
       } catch (e) {
