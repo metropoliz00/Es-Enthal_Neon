@@ -20,8 +20,223 @@ const KonfigurasiTab = ({ currentUser }: { currentUser: User }) => {
         time?: string;
         error?: string;
         message?: string;
+        info?: string;
     } | null>(null);
     const [checkingDb, setCheckingDb] = useState(false);
+    const [syncingSupabase, setSyncingSupabase] = useState(false);
+    const [syncResult, setSyncResult] = useState<{ success: boolean; details: string[]; errors: string[] } | null>(null);
+    const [showSqlScript, setShowSqlScript] = useState(false);
+    const [copiedSql, setCopiedSql] = useState(false);
+
+    const SUPABASE_DDL_SCRIPT = `-- ==========================================
+-- SKRIP SETUP SUPABASE DATABASE (DDL TABLE)
+-- Jalankan skrip ini di SQL Editor Supabase Anda
+-- ==========================================
+
+-- 1. Users Table
+CREATE TABLE IF NOT EXISTS public.users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    username TEXT NOT NULL UNIQUE,
+    password TEXT NOT NULL,
+    role TEXT DEFAULT 'siswa',
+    fullname TEXT,
+    nama_lengkap TEXT,
+    gender TEXT,
+    jenis_kelamin TEXT,
+    school TEXT,
+    kelas_id TEXT,
+    kelas TEXT,
+    kecamatan TEXT,
+    active_exam TEXT,
+    session TEXT,
+    photo_url TEXT,
+    active_tp TEXT,
+    active_paket TEXT,
+    exam_type TEXT,
+    status TEXT DEFAULT 'OFFLINE',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+);
+
+-- 2. Exams Table
+CREATE TABLE IF NOT EXISTS public.exams (
+    id TEXT PRIMARY KEY,
+    nama_ujian TEXT NOT NULL,
+    waktu_mulai TEXT,
+    durasi INTEGER DEFAULT 60,
+    token_akses TEXT,
+    is_active BOOLEAN DEFAULT false,
+    max_questions INTEGER DEFAULT 0
+);
+
+-- 3. Questions Table
+CREATE TABLE IF NOT EXISTS public.questions (
+    id TEXT PRIMARY KEY,
+    exam_id TEXT REFERENCES public.exams(id) ON DELETE CASCADE,
+    text_soal TEXT NOT NULL,
+    tipe_soal TEXT DEFAULT 'Pilihan Ganda',
+    bobot_nilai DOUBLE PRECISION DEFAULT 1,
+    gambar TEXT,
+    kelas TEXT,
+    tp_id TEXT,
+    caption TEXT,
+    jenis_ujian TEXT
+);
+
+-- 4. Options Table
+CREATE TABLE IF NOT EXISTS public.options (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    question_id TEXT REFERENCES public.questions(id) ON DELETE CASCADE,
+    text_jawaban TEXT NOT NULL,
+    is_correct BOOLEAN DEFAULT false
+);
+
+-- 5. Student Exams Table
+CREATE TABLE IF NOT EXISTS public.student_exams (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id TEXT,
+    exam_id TEXT,
+    status TEXT DEFAULT 'ongoing',
+    waktu_submit TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    nilai DOUBLE PRECISION DEFAULT 0
+);
+
+-- 6. Answers Table
+CREATE TABLE IF NOT EXISTS public.answers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_exam_id UUID REFERENCES public.student_exams(id) ON DELETE CASCADE,
+    question_id TEXT,
+    option_id UUID
+);
+
+-- 7. School Schedules Table
+CREATE TABLE IF NOT EXISTS public.school_schedules (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    school TEXT NOT NULL UNIQUE,
+    wave TEXT,
+    session TEXT,
+    time_slot TEXT
+);
+
+-- 8. App Config Table
+CREATE TABLE IF NOT EXISTS public.app_config (
+    key TEXT PRIMARY KEY,
+    value TEXT
+);
+
+-- 9. User Config Table
+CREATE TABLE IF NOT EXISTS public.user_config (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    username TEXT,
+    key TEXT,
+    value TEXT
+);
+
+-- 10. Learning Objectives Table
+CREATE TABLE IF NOT EXISTS public.learning_objectives (
+    id TEXT PRIMARY KEY,
+    mapel TEXT,
+    tp_code TEXT,
+    description TEXT,
+    kelas TEXT
+);
+
+-- 11. External Grades Table
+CREATE TABLE IF NOT EXISTS public.external_grades (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    username TEXT,
+    mapel TEXT,
+    nilai DOUBLE PRECISION
+);
+
+-- 12. LCC Teams Table
+CREATE TABLE IF NOT EXISTS public.lcc_teams (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    school TEXT,
+    score DOUBLE PRECISION DEFAULT 0,
+    color TEXT DEFAULT '#3b82f6',
+    logo TEXT,
+    correct_count INTEGER DEFAULT 0,
+    wrong_count INTEGER DEFAULT 0,
+    members JSONB DEFAULT '[]'
+);
+
+-- 13. LCC Questions Table
+CREATE TABLE IF NOT EXISTS public.lcc_questions (
+    id TEXT PRIMARY KEY,
+    nomor_soal INTEGER,
+    babak TEXT,
+    soal TEXT,
+    referensi_jawaban TEXT,
+    poin DOUBLE PRECISION DEFAULT 100,
+    kategori TEXT
+);
+
+-- 14. LCC Config Table
+CREATE TABLE IF NOT EXISTS public.lcc_config (
+    key TEXT PRIMARY KEY,
+    config JSONB NOT NULL
+);
+
+-- 15. LCC History Table
+CREATE TABLE IF NOT EXISTS public.lcc_history (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    timestamp TEXT,
+    team_id TEXT,
+    team_name TEXT,
+    points DOUBLE PRECISION,
+    description TEXT,
+    delta DOUBLE PRECISION
+);
+
+-- MATIKAN ROW LEVEL SECURITY (RLS) UNTUK SEMUA TABEL AGAR SINKRONISASI API KLIEN BERJALAN LANCAR
+ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exams DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.questions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.options DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.student_exams DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.answers DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.school_schedules DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.app_config DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_config DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.learning_objectives DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.external_grades DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.lcc_teams DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.lcc_questions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.lcc_config DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.lcc_history DISABLE ROW LEVEL SECURITY;
+`;
+
+    const handleCopySqlScript = () => {
+        navigator.clipboard.writeText(SUPABASE_DDL_SCRIPT);
+        setCopiedSql(true);
+        showToast('SKRIP SQL Supabase DDL berhasil disalin!', 'success');
+        setTimeout(() => setCopiedSql(false), 3000);
+    };
+
+    const handleSyncToSupabase = async () => {
+        setSyncingSupabase(true);
+        setSyncResult(null);
+        try {
+            const res = await api.syncLocalDataToSupabase();
+            setSyncResult(res);
+            if (res.success) {
+                showToast('Semua data lokal berhasil disinkronkan ke Supabase!', 'success');
+            } else {
+                showToast('Proses sinkronisasi ke Supabase selesai dengan beberapa catatan.', 'info');
+            }
+        } catch (err: any) {
+            setSyncResult({
+                success: false,
+                details: [],
+                errors: [err.message || 'Gagal melakukan sinkronisasi data']
+            });
+            showToast('Gagal sinkronisasi data ke Supabase: ' + err.message, 'error');
+        } finally {
+            setSyncingSupabase(false);
+            runCheckDb();
+        }
+    };
 
     const runCheckDb = async () => {
         setCheckingDb(true);
@@ -288,97 +503,6 @@ const KonfigurasiTab = ({ currentUser }: { currentUser: User }) => {
             </div>
 
             <div className="space-y-8">
-                
-                {/* DATABASE NEON CONNECTION STATUS BANNER */}
-                {dbHealth?.database === 'connected' ? (
-                    <div className="p-4 rounded-2xl bg-emerald-50/90 border border-emerald-200/80 flex items-center justify-between gap-3 text-emerald-900 shadow-sm">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2.5 rounded-xl bg-emerald-500/15 text-emerald-600 flex items-center justify-center shrink-0">
-                                <Database size={22} className="text-emerald-600" />
-                            </div>
-                            <div className="flex items-center gap-2.5 flex-wrap">
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                    Connected
-                                </span>
-                            </div>
-                        </div>
-                        <button
-                            onClick={runCheckDb}
-                            disabled={checkingDb}
-                            title="Cek Ulang Koneksi"
-                            className="px-3 py-1.5 bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl transition flex items-center gap-1.5 text-xs font-semibold shadow-xs shrink-0 active:scale-95 disabled:opacity-50"
-                        >
-                            <RefreshCw size={13} className={checkingDb ? 'animate-spin' : ''} />
-                            <span className="hidden sm:inline">Cek Koneksi</span>
-                        </button>
-                    </div>
-                ) : (
-                    <div className="p-5 rounded-2xl border bg-amber-50 border-amber-200 text-amber-900 transition-all">
-                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                            <div className="flex items-start gap-3">
-                                <div className="p-2.5 rounded-xl mt-0.5 bg-amber-500/10 text-amber-600">
-                                    <Database size={24} />
-                                </div>
-                                <div>
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <h4 className="font-extrabold text-base">
-                                            Status Koneksi Database
-                                        </h4>
-                                        {checkingDb ? (
-                                            <span className="text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded-md flex items-center gap-1 font-semibold">
-                                                <Loader2 size={12} className="animate-spin" /> Memeriksa...
-                                            </span>
-                                        ) : (
-                                            <span className="text-xs bg-rose-100 text-rose-800 font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                                                <XCircle size={13} /> Belum Terhubung
-                                            </span>
-                                        )}
-                                    </div>
-                                    
-                                    <p className="text-xs font-medium mt-1 opacity-90 leading-relaxed">
-                                        Database Supabase belum terhubung. Silakan atur variabel lingkungan Supabase Anda.
-                                    </p>
-
-                                    <div className="mt-3 p-3 bg-white/90 rounded-xl border border-amber-200 text-xs space-y-2 text-slate-800 shadow-sm">
-                                        <p className="font-bold text-amber-900 flex items-center gap-1">
-                                            <AlertCircle size={14} className="text-amber-600" />
-                                            Petunjuk Menghubungkan Supabase:
-                                        </p>
-                                        {dbHealth?.error && (
-                                            <p className="font-mono text-[11px] bg-rose-50 text-rose-800 p-2 rounded border border-rose-200 break-all">
-                                                Detail Error: {dbHealth.error}
-                                            </p>
-                                        )}
-                                        <ol className="list-decimal list-inside space-y-1.5 text-slate-700 font-medium text-[11px]">
-                                            <li>Buka dashboard Supabase Anda di <strong>supabase.com</strong> &gt; <strong>Project Settings</strong> &gt; <strong>API</strong>.</li>
-                                            <li>Salin <strong>Project URL</strong> dan <strong>anon / public key</strong>.</li>
-                                            <li>Buka menu <strong>Settings</strong> &gt; <strong>Secrets / Environment Variables</strong> di AI Studio (atau di Netlify/Vercel).</li>
-                                            <li>Tambahkan 2 variabel utama:
-                                                <ul className="list-disc list-inside ml-4 mt-0.5 space-y-0.5 text-slate-800 font-mono text-[10px]">
-                                                    <li><code>SUPABASE_URL</code></li>
-                                                    <li><code>SUPABASE_ANON_KEY</code></li>
-                                                </ul>
-                                            </li>
-                                            <li>Jalankan script SQL dari file <code>supabase_schema.sql</code> di SQL Editor Supabase Anda.</li>
-                                            <li>Klik tombol <strong>Cek Ulang Koneksi</strong> setelah menambahkan variabel.</li>
-                                        </ol>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <button
-                                onClick={runCheckDb}
-                                disabled={checkingDb}
-                                className="px-4 py-2 bg-white border border-slate-300 hover:border-slate-400 text-slate-700 hover:text-slate-900 font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-2 shrink-0 active:scale-95 disabled:opacity-50"
-                            >
-                                <RefreshCw size={14} className={checkingDb ? 'animate-spin' : ''} />
-                                Cek Ulang Koneksi
-                            </button>
-                        </div>
-                    </div>
-                )}
-
                 {/* Section 0: LOGO UPLOAD */}
                 <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 relative overflow-hidden">
                     {isGuru && (

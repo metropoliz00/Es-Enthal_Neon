@@ -1,4 +1,5 @@
 import { User, Exam, QuestionWithOptions, QuestionRow, SchoolSchedule, LearningObjective, ExternalGrade } from '../../types';
+import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabase';
 
 // Helper to format Google Drive URLs to direct image links
 const formatGoogleDriveUrl = (url?: string): string | undefined => {
@@ -99,6 +100,142 @@ const decodeUserFromDb = (u: any): any => {
     };
 };
 
+// Sync local data from localStorage directly to Supabase if connected
+const syncLocalDataToSupabase = async (): Promise<{ success: boolean; details: string[]; errors: string[] }> => {
+    const details: string[] = [];
+    const errors: string[] = [];
+
+    if (!isSupabaseConfigured()) {
+        return { success: false, details: [], errors: ["Supabase belum dikonfigurasi di Environment Variables."] };
+    }
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+        return { success: false, details: [], errors: ["Klien Supabase gagal diinisialisasi."] };
+    }
+
+    try {
+        // 1. Sync local users
+        const cachedUsersStr = localStorage.getItem('cbt_users_cache');
+        if (cachedUsersStr) {
+            try {
+                const localUsers = JSON.parse(cachedUsersStr);
+                if (Array.isArray(localUsers) && localUsers.length > 0) {
+                    const mappedUsers = localUsers.map((u: any) => encodeUserForDb(u));
+                    const { error } = await supabase.from('users').upsert(mappedUsers, { onConflict: 'username' });
+                    if (error) errors.push(`Users: ${error.message}`);
+                    else details.push(`Disinkronkan ${mappedUsers.length} pengguna ke tabel 'users'`);
+                }
+            } catch (err: any) {
+                errors.push(`Users parse error: ${err.message}`);
+            }
+        }
+
+        // 2. Sync local app_config
+        const cachedConfigStr = localStorage.getItem('cbt_app_config');
+        if (cachedConfigStr) {
+            try {
+                const localConfig = JSON.parse(cachedConfigStr);
+                if (typeof localConfig === 'object' && localConfig !== null) {
+                    const updates = Object.entries(localConfig).map(([key, value]) => ({ key, value: String(value) }));
+                    if (updates.length > 0) {
+                        const { error } = await supabase.from('app_config').upsert(updates, { onConflict: 'key' });
+                        if (error) errors.push(`AppConfig: ${error.message}`);
+                        else details.push(`Disinkronkan ${updates.length} pengaturan ke tabel 'app_config'`);
+                    }
+                }
+            } catch (err: any) {
+                errors.push(`AppConfig parse error: ${err.message}`);
+            }
+        }
+
+        // 3. Sync local school schedules
+        const cachedSchedulesStr = localStorage.getItem('cbt_school_schedules');
+        if (cachedSchedulesStr) {
+            try {
+                const localSchedules = JSON.parse(cachedSchedulesStr);
+                if (Array.isArray(localSchedules) && localSchedules.length > 0) {
+                    const clean = localSchedules.filter((s: any) => s && s.school);
+                    if (clean.length > 0) {
+                        const { error } = await supabase.from('school_schedules').upsert(clean);
+                        if (error) errors.push(`Schedules: ${error.message}`);
+                        else details.push(`Disinkronkan ${clean.length} jadwal sekolah ke tabel 'school_schedules'`);
+                    }
+                }
+            } catch (err: any) {
+                errors.push(`Schedules parse error: ${err.message}`);
+            }
+        }
+
+        // 4. Sync LCC data
+        const lccTeamsStr = localStorage.getItem('lcc_scoreboard_teams');
+        if (lccTeamsStr) {
+            try {
+                const teams = JSON.parse(lccTeamsStr);
+                if (Array.isArray(teams) && teams.length > 0) {
+                    const { error } = await supabase.from('lcc_teams').upsert(teams);
+                    if (error) errors.push(`LCC Teams: ${error.message}`);
+                    else details.push(`Disinkronkan ${teams.length} tim LCC ke tabel 'lcc_teams'`);
+                }
+            } catch (err: any) {
+                errors.push(`LCC Teams error: ${err.message}`);
+            }
+        }
+
+        const lccQuestionsStr = localStorage.getItem('lcc_questions');
+        if (lccQuestionsStr) {
+            try {
+                const qList = JSON.parse(lccQuestionsStr);
+                if (Array.isArray(qList) && qList.length > 0) {
+                    const { error } = await supabase.from('lcc_questions').upsert(qList);
+                    if (error) errors.push(`LCC Questions: ${error.message}`);
+                    else details.push(`Disinkronkan ${qList.length} soal LCC ke tabel 'lcc_questions'`);
+                }
+            } catch (err: any) {
+                errors.push(`LCC Questions error: ${err.message}`);
+            }
+        }
+
+        const lccConfigStr = localStorage.getItem('lcc_scoreboard_config');
+        if (lccConfigStr) {
+            try {
+                const configObj = JSON.parse(lccConfigStr);
+                const { error } = await supabase.from('lcc_config').upsert({ key: 'main', config: configObj }, { onConflict: 'key' });
+                if (error) errors.push(`LCC Config: ${error.message}`);
+                else details.push(`Disinkronkan konfigurasi LCC ke tabel 'lcc_config'`);
+            } catch (err: any) {
+                errors.push(`LCC Config error: ${err.message}`);
+            }
+        }
+
+        const lccHistoryStr = localStorage.getItem('lcc_scoreboard_history');
+        if (lccHistoryStr) {
+            try {
+                const history = JSON.parse(lccHistoryStr);
+                if (Array.isArray(history) && history.length > 0) {
+                    const { error } = await supabase.from('lcc_history').upsert(history);
+                    if (error) errors.push(`LCC History: ${error.message}`);
+                    else details.push(`Disinkronkan ${history.length} riwayat LCC ke tabel 'lcc_history'`);
+                }
+            } catch (err: any) {
+                errors.push(`LCC History error: ${err.message}`);
+            }
+        }
+
+        return {
+            success: errors.length === 0,
+            details,
+            errors
+        };
+    } catch (e: any) {
+        console.warn("Auto sync local data to Supabase warning:", e);
+        return {
+            success: false,
+            details,
+            errors: [...errors, e.message || String(e)]
+        };
+    }
+};
+
 // Helper to handle exam entry creation
 const ensureExamExists = async (subject: string): Promise<string> => {
     const examId = stringToUuid(subject);
@@ -118,8 +255,9 @@ const ensureExamExists = async (subject: string): Promise<string> => {
 };
 
 export const api = {
-  checkDatabaseConnection: async (): Promise<{ status: string, database: string, hasEnv: boolean, time?: string, error?: string, message?: string }> => {
+  checkDatabaseConnection: async (): Promise<{ status: string, database: string, hasEnv: boolean, time?: string, error?: string, message?: string, info?: string }> => {
     try {
+        syncLocalDataToSupabase().catch(() => {});
         const res = await fetch("/api/health");
         const text = await res.text();
         try {
@@ -131,7 +269,7 @@ export const api = {
                 database: "disconnected",
                 hasEnv: false,
                 error: `HTTP ${res.status}: ${text.slice(0, 150)}`,
-                message: "Server Vercel mengembalikan respon non-JSON. Pastikan DATABASE_URL sudah disetting di Vercel Environment Variables."
+                message: "Server mengembalikan respon non-JSON. Pastikan SUPABASE_URL dan SUPABASE_ANON_KEY sudah disetting di Environment Variables."
             };
         }
     } catch (e: any) {
@@ -1141,5 +1279,9 @@ export const api = {
           console.error("Error saving LCC history:", err);
           return { success: false, error: err };
       }
+  },
+
+  syncLocalDataToSupabase: async (): Promise<{ success: boolean; details: string[]; errors: string[] }> => {
+      return await syncLocalDataToSupabase();
   }
 };

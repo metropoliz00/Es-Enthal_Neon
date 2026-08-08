@@ -1,135 +1,123 @@
 import express from "express";
-import { db, createPool } from "./db/index";
-import { initDbTables } from "./db/init";
-import { 
-  users, 
-  exams, 
-  questions, 
-  options, 
-  studentExams, 
-  answers, 
-  schoolSchedules, 
-  appConfig, 
-  userConfig, 
-  learningObjectives, 
-  externalGrades, 
-  lccTeams, 
-  lccQuestions, 
-  lccConfig, 
-  lccHistory 
-} from "./db/schema";
-import { eq, and, inArray, ne, desc, asc } from "drizzle-orm";
+import { getSupabaseClient } from "./lib/supabase";
 
 export const app = express();
 
 app.use(express.json({ limit: "50mb" }));
 
-// Lazy DB Table Initializer (Prevents lambda cold-start blocking)
-let dbTablesInitialized = false;
-let dbInitPromise: Promise<any> | null = null;
-
-// Ensure DB tables lazily when needed without dangling un-awaited background promises in Express middleware
-async function ensureDbTables() {
-  let hasEnv = false;
-  if (process.env.DATABASE_URL) {
-    const url = process.env.DATABASE_URL.trim().replace(/^["'<]+|["'>]+$/g, '');
-    if (url && url !== '""' && url !== "''") {
-      hasEnv = true;
-    }
-  }
-  if (process.env.SQL_HOST) {
-    const host = process.env.SQL_HOST.trim().replace(/^["'<]+|["'>]+$/g, '');
-    if (host && host !== '""' && host !== "''") {
-      hasEnv = true;
+// Helper to execute DB queries directly via Supabase REST JS Client
+async function runWithSupabaseFallback<T>(
+  _dbFn: any,
+  supabaseFn: (supabase: any) => Promise<T>
+): Promise<T> {
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      return await supabaseFn(supabase);
+    } catch (sbErr: any) {
+      console.error("Supabase REST query error:", sbErr?.message || sbErr);
+      throw sbErr;
     }
   }
 
-  if (!hasEnv || dbTablesInitialized) return;
-
-  if (!dbInitPromise) {
-    dbInitPromise = initDbTables()
-      .then((success) => {
-        if (success) {
-          dbTablesInitialized = true;
-        } else {
-          dbInitPromise = null;
-        }
-      })
-      .catch((e) => {
-        console.error("Lazy table init failed:", e);
-        dbInitPromise = null;
-      });
-  }
-  try {
-    await dbInitPromise;
-  } catch (e) {
-    // Ignore error to avoid blocking execution
-  }
+  throw new Error("Supabase belum dikonfigurasi. Silakan atur SUPABASE_URL dan SUPABASE_ANON_KEY di Environment Variables.");
 }
-
-// Global safety handler middleware for DB auto-check
-app.use((req, res, next) => {
-  // Only trigger table check if env exists and not initialized yet, without floating unhandled rejections
-  if (!dbTablesInitialized && (process.env.DATABASE_URL || process.env.SQL_HOST)) {
-    ensureDbTables().catch((err) => {
-      console.warn("Auto-table init warning:", err?.message || err);
-    });
-  }
-  next();
-});
 
 // --- API ROUTES ---
 
 // Health & DB Connection Check Endpoint
 app.get(["/api/health", "/health", "/api/health/"], async (req, res) => {
-  let connectionString = process.env.DATABASE_URL?.trim() || "";
-  if (connectionString) {
-    connectionString = connectionString.replace(/^["'<]+|["'>]+$/g, '').trim();
-  }
+  const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").trim().replace(/^["'<]+|["'>]+$/g, '');
+  const supabaseKey = (process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || process.env.VITE_SUPABASE_ANON_KEY || "").trim().replace(/^["'<]+|["'>]+$/g, '');
 
-  const hasEnv = !!(connectionString || process.env.SQL_HOST?.trim());
+  const hasEnv = !!(supabaseUrl && supabaseKey);
 
   if (!hasEnv) {
     return res.status(200).json({
       status: "error",
       database: "disconnected",
       hasEnv: false,
-      error: "DATABASE_URL belum diisi di Environment Variables Vercel.",
-      message: "DATABASE_URL belum disetting di Vercel Dashboard. Silakan tambahkan variabel DATABASE_URL di Settings > Environment Variables di Vercel."
+      error: "Variabel lingkungan Supabase belum diisi.",
+      message: "Silakan atur SUPABASE_URL dan SUPABASE_ANON_KEY di Settings > Environment Variables."
     });
   }
 
-  try {
-    const pool = createPool();
-    // 4-second query timeout safeguard so health checks never hang or time out in Vercel
-    const result = await Promise.race([
-      pool.query("SELECT NOW()"),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Koneksi database timeout (4 detik). Pastikan database Supabase Anda aktif.")), 4000))
-    ]) as any;
-
-    return res.status(200).json({
-      status: "ok",
-      database: "connected",
-      hasEnv: true,
-      time: result.rows?.[0]?.now || new Date().toISOString()
-    });
-  } catch (err: any) {
-    console.error("Database connection health check failed:", err?.message || err);
-    return res.status(200).json({
-      status: "error",
-      database: "disconnected",
-      hasEnv: true,
-      error: err?.message || "Gagal terhubung ke database Neon / PostgreSQL",
-      message: "Gagal terhubung ke database Neon: " + (err?.message || "Koneksi terputus")
-    });
+  const supabaseClient = getSupabaseClient();
+  if (supabaseClient) {
+    try {
+      const { data, error } = await supabaseClient.from('users').select('username').limit(1);
+      if (!error || error.code === '42P01' || error.code === 'PGRST116' || error.code === 'PGRST301') {
+        return res.status(200).json({
+          status: "ok",
+          database: "connected",
+          hasEnv: true,
+          time: new Date().toISOString(),
+          info: "Terhubung ke Supabase (REST API URL & Anon Key)",
+          message: "Berhasil terhubung ke Supabase via URL & Anon Key!"
+        });
+      }
+    } catch (sbErr) {
+      // continue to ping check
+    }
   }
+
+  if (supabaseKey) {
+    try {
+      const pingRes = await fetch(`${supabaseUrl}/rest/v1/`, {
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`
+        }
+      });
+      if (pingRes.ok || pingRes.status === 200 || pingRes.status === 204) {
+        return res.status(200).json({
+          status: "ok",
+          database: "connected",
+          hasEnv: true,
+          time: new Date().toISOString(),
+          info: "Terhubung ke Supabase (HTTP REST Endpoint)",
+          message: "Supabase REST API Terhubung!"
+        });
+      } else {
+        const text = await pingRes.text();
+        return res.status(200).json({
+          status: "error",
+          database: "disconnected",
+          hasEnv: true,
+          error: `Supabase REST (HTTP ${pingRes.status}): ${text.slice(0, 120)}`,
+          message: `Gagal otentikasi Supabase (HTTP ${pingRes.status}). Periksa SUPABASE_ANON_KEY Anda.`
+        });
+      }
+    } catch (pingErr: any) {
+      return res.status(200).json({
+        status: "error",
+        database: "disconnected",
+        hasEnv: true,
+        error: `Gagal menghubungi URL Supabase: ${pingErr.message}`,
+        message: "Tidak dapat menghubungi SUPABASE_URL. Periksa kembali URL Supabase Anda."
+      });
+    }
+  }
+
+  return res.status(200).json({
+    status: "error",
+    database: "disconnected",
+    hasEnv: true,
+    error: "Gagal terhubung ke Supabase REST API",
+    message: "Gagal terhubung ke Database Supabase."
+  });
 });
 
 // 1. Login
 app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
   try {
-    const rows = await db.select().from(users).where(eq(users.username, username));
+    const rows = await runWithSupabaseFallback(null, async (supabase) => {
+        const { data, error } = await supabase.from('users').select('*').eq('username', username);
+        if (error) throw error;
+        return data || [];
+      }
+    );
     res.json({ rows });
   } catch (err: any) {
     console.error("Login route failed:", err);
@@ -141,11 +129,15 @@ app.post("/api/login", async (req, res) => {
 app.post("/api/start-exam", async (req, res) => {
   const { username, subject } = req.body;
   try {
-    await db.insert(studentExams).values({
-      user_id: username,
-      exam_id: subject,
-      status: "ongoing"
-    });
+    await runWithSupabaseFallback(null, async (supabase) => {
+        const { error } = await supabase.from('student_exams').insert({
+          user_id: username,
+          exam_id: subject,
+          status: "ongoing"
+        });
+        if (error) throw error;
+      }
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Start exam failed:", err);
@@ -157,8 +149,12 @@ app.post("/api/start-exam", async (req, res) => {
 app.get("/api/check-status", async (req, res) => {
   const username = req.query.username as string;
   try {
-    const row = await db.select({ status: users.status }).from(users).where(eq(users.username, username)).limit(1);
-    res.json({ status: row[0]?.status || "OFFLINE" });
+    const statusVal = await runWithSupabaseFallback(null, async (supabase) => {
+        const { data } = await supabase.from('users').select('status').eq('username', username).single();
+        return data?.status || "OFFLINE";
+      }
+    );
+    res.json({ status: statusVal });
   } catch (err: any) {
     console.error("Check status failed:", err);
     res.status(500).json({ error: err.message });
@@ -168,7 +164,12 @@ app.get("/api/check-status", async (req, res) => {
 // 4. Get Exams
 app.get("/api/exams", async (req, res) => {
   try {
-    const list = await db.select().from(exams);
+    const list = await runWithSupabaseFallback(null, async (supabase) => {
+        const { data, error } = await supabase.from('exams').select('*');
+        if (error) throw error;
+        return data || [];
+      }
+    );
     res.json({ exams: list });
   } catch (err: any) {
     console.error("Get exams failed:", err);
@@ -179,24 +180,20 @@ app.get("/api/exams", async (req, res) => {
 // 4.1. Ensure Exam Exists
 app.post("/api/exams/ensure", async (req, res) => {
   const { id, nama_ujian, waktu_mulai, durasi, token_akses, is_active } = req.body;
+  const examData = {
+    id,
+    nama_ujian,
+    waktu_mulai: waktu_mulai || new Date().toISOString(),
+    durasi: durasi || 60,
+    token_akses: token_akses || "123456",
+    is_active: is_active !== undefined ? is_active : true
+  };
   try {
-    await db.insert(exams).values({
-      id,
-      nama_ujian,
-      waktu_mulai: waktu_mulai || new Date().toISOString(),
-      durasi: durasi || 60,
-      token_akses: token_akses || "123456",
-      is_active: is_active !== undefined ? is_active : true
-    }).onConflictDoUpdate({
-      target: exams.id,
-      set: {
-        nama_ujian,
-        waktu_mulai: waktu_mulai || new Date().toISOString(),
-        durasi: durasi || 60,
-        token_akses: token_akses || "123456",
-        is_active: is_active !== undefined ? is_active : true
+    await runWithSupabaseFallback(null, async (supabase) => {
+        const { error } = await supabase.from('exams').upsert(examData, { onConflict: 'id' });
+        if (error) throw error;
       }
-    });
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Ensure exam failed:", err);
@@ -207,7 +204,12 @@ app.post("/api/exams/ensure", async (req, res) => {
 // 5. Get App Config
 app.get("/api/app-config", async (req, res) => {
   try {
-    const list = await db.select().from(appConfig);
+    const list = await runWithSupabaseFallback(null, async (supabase) => {
+        const { data, error } = await supabase.from('app_config').select('*');
+        if (error) throw error;
+        return data || [];
+      }
+    );
     res.json({ list });
   } catch (err: any) {
     console.error("Get app config failed:", err);
@@ -225,13 +227,14 @@ const saveAppConfigHandler = async (req: express.Request, res: express.Response)
     updates = [];
   }
   try {
-    for (const item of updates) {
-      if (!item || !item.key) continue;
-      await db.insert(appConfig).values({ key: item.key, value: item.value || "" }).onConflictDoUpdate({
-        target: appConfig.key,
-        set: { value: item.value || "" }
-      });
-    }
+    await runWithSupabaseFallback(null, async (supabase) => {
+        const valid = updates.filter((item: any) => item && item.key).map((item: any) => ({ key: item.key, value: item.value || "" }));
+        if (valid.length > 0) {
+          const { error } = await supabase.from('app_config').upsert(valid, { onConflict: 'key' });
+          if (error) throw error;
+        }
+      }
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Config save failed:", err);
@@ -246,7 +249,12 @@ app.post("/api/app-config/batch", saveAppConfigHandler);
 app.get("/api/user-config", async (req, res) => {
   const username = req.query.username as string;
   try {
-    const list = await db.select().from(userConfig).where(eq(userConfig.username, username));
+    const list = await runWithSupabaseFallback(null, async (supabase) => {
+        const { data, error } = await supabase.from('user_config').select('*').eq('username', username);
+        if (error) throw error;
+        return data || [];
+      }
+    );
     res.json({ list });
   } catch (err: any) {
     console.error("Get user config failed:", err);
@@ -258,20 +266,13 @@ app.get("/api/user-config", async (req, res) => {
 app.post("/api/user-config", async (req, res) => {
   const { updates } = req.body;
   try {
-    for (const item of updates) {
-      const existing = await db.select().from(userConfig).where(
-        and(
-          eq(userConfig.username, item.username),
-          eq(userConfig.key, item.key)
-        )
-      ).limit(1);
-
-      if (existing.length > 0) {
-        await db.update(userConfig).set({ value: item.value }).where(eq(userConfig.id, existing[0].id));
-      } else {
-        await db.insert(userConfig).values(item);
+    await runWithSupabaseFallback(null, async (supabase) => {
+        if (updates && updates.length > 0) {
+          const { error } = await supabase.from('user_config').upsert(updates);
+          if (error) throw error;
+        }
       }
-    }
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Save user config failed:", err);
@@ -283,19 +284,21 @@ app.post("/api/user-config", async (req, res) => {
 app.get("/api/questions", async (req, res) => {
   const examId = req.query.subject_id as string;
   try {
-    const qList = await db.select().from(questions).where(eq(questions.exam_id, examId));
-    if (qList.length === 0) {
-      return res.json({ questions: [] });
-    }
+    const merged = await runWithSupabaseFallback(null, async (supabase) => {
+        const { data: qList, error: qErr } = await supabase.from('questions').select('*').eq('exam_id', examId);
+        if (qErr) throw qErr;
+        if (!qList || qList.length === 0) return [];
 
-    const qIds = qList.map((q: any) => q.id);
-    const optList = await db.select().from(options).where(inArray(options.question_id, qIds));
+        const qIds = qList.map((q: any) => q.id);
+        const { data: optList, error: optErr } = await supabase.from('options').select('*').in('question_id', qIds);
+        if (optErr) throw optErr;
 
-    const merged = qList.map((q: any) => ({
-      ...q,
-      options: optList.filter((o: any) => o.question_id === q.id)
-    }));
-
+        return qList.map((q: any) => ({
+          ...q,
+          options: (optList || []).filter((o: any) => o.question_id === q.id)
+        }));
+      }
+    );
     res.json({ questions: merged });
   } catch (err: any) {
     console.error("Get questions failed:", err);
@@ -307,26 +310,18 @@ app.get("/api/questions", async (req, res) => {
 app.post("/api/questions", async (req, res) => {
   const { question, optionsList } = req.body;
   try {
-    await db.insert(questions).values(question).onConflictDoUpdate({
-      target: questions.id,
-      set: {
-        exam_id: question.exam_id,
-        text_soal: question.text_soal,
-        tipe_soal: question.tipe_soal,
-        bobot_nilai: question.bobot_nilai,
-        gambar: question.gambar,
-        caption: question.caption,
-        kelas: question.kelas,
-        tp_id: question.tp_id,
-        jenis_ujian: question.jenis_ujian
+    await runWithSupabaseFallback(null, async (supabase) => {
+        const { error: qErr } = await supabase.from('questions').upsert(question, { onConflict: 'id' });
+        if (qErr) throw qErr;
+
+        await supabase.from('options').delete().eq('question_id', question.id);
+
+        if (optionsList && optionsList.length > 0) {
+          const { error: optErr } = await supabase.from('options').insert(optionsList);
+          if (optErr) throw optErr;
+        }
       }
-    });
-
-    await db.delete(options).where(eq(options.question_id, question.id));
-
-    if (optionsList && optionsList.length > 0) {
-      await db.insert(options).values(optionsList);
-    }
+    );
 
     res.json({ success: true });
   } catch (err: any) {
@@ -339,27 +334,19 @@ app.post("/api/questions", async (req, res) => {
 app.post("/api/questions/import", async (req, res) => {
   const { list } = req.body;
   try {
-    for (const item of list) {
-      await db.insert(questions).values(item.question).onConflictDoUpdate({
-        target: questions.id,
-        set: {
-          exam_id: item.question.exam_id,
-          text_soal: item.question.text_soal,
-          tipe_soal: item.question.tipe_soal,
-          bobot_nilai: item.question.bobot_nilai,
-          gambar: item.question.gambar,
-          caption: item.question.caption,
-          kelas: item.question.kelas,
-          tp_id: item.question.tp_id,
-          jenis_ujian: item.question.jenis_ujian
-        }
-      });
+    await runWithSupabaseFallback(null, async (supabase) => {
+        for (const item of list) {
+          const { error: qErr } = await supabase.from('questions').upsert(item.question, { onConflict: 'id' });
+          if (qErr) throw qErr;
 
-      await db.delete(options).where(eq(options.question_id, item.question.id));
-      if (item.optionsList && item.optionsList.length > 0) {
-        await db.insert(options).values(item.optionsList);
+          await supabase.from('options').delete().eq('question_id', item.question.id);
+          if (item.optionsList && item.optionsList.length > 0) {
+            const { error: optErr } = await supabase.from('options').insert(item.optionsList);
+            if (optErr) throw optErr;
+          }
+        }
       }
-    }
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Import questions failed:", err);
@@ -371,8 +358,12 @@ app.post("/api/questions/import", async (req, res) => {
 app.delete("/api/questions", async (req, res) => {
   const { id } = req.body;
   try {
-    await db.delete(options).where(eq(options.question_id, id));
-    await db.delete(questions).where(eq(questions.id, id));
+    await runWithSupabaseFallback(null, async (supabase) => {
+        await supabase.from('options').delete().eq('question_id', id);
+        const { error } = await supabase.from('questions').delete().eq('id', id);
+        if (error) throw error;
+      }
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Delete question failed:", err);
@@ -383,7 +374,12 @@ app.delete("/api/questions", async (req, res) => {
 // 13. Get Users
 app.get("/api/users", async (req, res) => {
   try {
-    const list = await db.select().from(users);
+    const list = await runWithSupabaseFallback(null, async (supabase) => {
+        const { data, error } = await supabase.from('users').select('*');
+        if (error) throw error;
+        return data || [];
+      }
+    );
     res.json({ users: list });
   } catch (err: any) {
     console.error("Get users failed:", err);
@@ -395,16 +391,11 @@ app.get("/api/users", async (req, res) => {
 app.post("/api/users", async (req, res) => {
   const { user, existingId } = req.body;
   try {
-    if (existingId) {
-      await db.update(users).set(user).where(eq(users.id, existingId));
-    } else {
-      const check = await db.select().from(users).where(eq(users.username, user.username)).limit(1);
-      if (check.length > 0) {
-        await db.update(users).set(user).where(eq(users.id, check[0].id));
-      } else {
-        await db.insert(users).values(user);
+    await runWithSupabaseFallback(null, async (supabase) => {
+        const { error } = await supabase.from('users').upsert(user, { onConflict: 'username' });
+        if (error) throw error;
       }
-    }
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Save user failed:", err);
@@ -416,7 +407,11 @@ app.post("/api/users", async (req, res) => {
 app.delete("/api/users", async (req, res) => {
   const username = req.query.username as string;
   try {
-    await db.delete(users).where(eq(users.username, username));
+    await runWithSupabaseFallback(null, async (supabase) => {
+        const { error } = await supabase.from('users').delete().eq('username', username);
+        if (error) throw error;
+      }
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Delete user failed:", err);
@@ -428,12 +423,11 @@ app.delete("/api/users", async (req, res) => {
 app.post("/api/users/import", async (req, res) => {
   const { mappedUsers } = req.body;
   try {
-    for (const u of mappedUsers) {
-      await db.insert(users).values(u).onConflictDoUpdate({
-        target: users.username,
-        set: u
-      });
-    }
+    await runWithSupabaseFallback(null, async (supabase) => {
+        const { error } = await supabase.from('users').upsert(mappedUsers, { onConflict: 'username' });
+        if (error) throw error;
+      }
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Import users failed:", err);
@@ -444,15 +438,20 @@ app.post("/api/users/import", async (req, res) => {
 // 17. Normalize Database Roles
 app.post("/api/users/normalize", async (req, res) => {
   try {
-    const list = await db.select({ id: users.id, role: users.role }).from(users);
-    let updated = 0;
-    for (const user of list) {
-      const newRole = user.role === "Guru" ? "Guru" : "siswa";
-      if (user.role !== newRole) {
-        await db.update(users).set({ role: newRole }).where(eq(users.id, user.id));
-        updated++;
+    const updated = await runWithSupabaseFallback(null, async (supabase) => {
+        const { data: list, error } = await supabase.from('users').select('id, role');
+        if (error) throw error;
+        let count = 0;
+        for (const user of (list || [])) {
+          const newRole = user.role === "Guru" ? "Guru" : "siswa";
+          if (user.role !== newRole) {
+            await supabase.from('users').update({ role: newRole }).eq('id', user.id);
+            count++;
+          }
+        }
+        return count;
       }
-    }
+    );
     res.json({ success: true, updated });
   } catch (err: any) {
     console.error("Normalize failed:", err);
@@ -463,7 +462,12 @@ app.post("/api/users/normalize", async (req, res) => {
 // 18. Get Learning Objectives
 app.get("/api/learning-objectives", async (req, res) => {
   try {
-    const list = await db.select().from(learningObjectives);
+    const list = await runWithSupabaseFallback(null, async (supabase) => {
+        const { data, error } = await supabase.from('learning_objectives').select('*');
+        if (error) throw error;
+        return data || [];
+      }
+    );
     res.json({ list });
   } catch (err: any) {
     console.error("Get LO failed:", err);
@@ -475,10 +479,11 @@ app.get("/api/learning-objectives", async (req, res) => {
 app.post("/api/learning-objectives", async (req, res) => {
   const data = req.body;
   try {
-    await db.insert(learningObjectives).values(data).onConflictDoUpdate({
-      target: learningObjectives.id,
-      set: data
-    });
+    await runWithSupabaseFallback(null, async (supabase) => {
+        const { error } = await supabase.from('learning_objectives').upsert(data, { onConflict: 'id' });
+        if (error) throw error;
+      }
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Save LO failed:", err);
@@ -490,7 +495,11 @@ app.post("/api/learning-objectives", async (req, res) => {
 app.delete("/api/learning-objectives", async (req, res) => {
   const id = req.query.id as string;
   try {
-    await db.delete(learningObjectives).where(eq(learningObjectives.id, id));
+    await runWithSupabaseFallback(null, async (supabase) => {
+        const { error } = await supabase.from('learning_objectives').delete().eq('id', id);
+        if (error) throw error;
+      }
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Delete LO failed:", err);
@@ -502,12 +511,11 @@ app.delete("/api/learning-objectives", async (req, res) => {
 app.post("/api/learning-objectives/import", async (req, res) => {
   const { list } = req.body;
   try {
-    for (const item of list) {
-      await db.insert(learningObjectives).values(item).onConflictDoUpdate({
-        target: learningObjectives.id,
-        set: item
-      });
-    }
+    await runWithSupabaseFallback(null, async (supabase) => {
+        const { error } = await supabase.from('learning_objectives').upsert(list, { onConflict: 'id' });
+        if (error) throw error;
+      }
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Import LOs failed:", err);
@@ -519,9 +527,13 @@ app.post("/api/learning-objectives/import", async (req, res) => {
 app.post("/api/assign-test-group", async (req, res) => {
   const { usernames, examId, session, tpId, examType } = req.body;
   try {
-    await db.update(users)
-      .set({ active_exam: examId, session, active_tp: tpId, exam_type: examType })
-      .where(inArray(users.username, usernames));
+    await runWithSupabaseFallback(null, async (supabase) => {
+        const { error } = await supabase.from('users')
+          .update({ active_exam: examId, session, active_tp: tpId, exam_type: examType })
+          .in('username', usernames);
+        if (error) throw error;
+      }
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Assign group failed:", err);
@@ -533,9 +545,13 @@ app.post("/api/assign-test-group", async (req, res) => {
 app.post("/api/update-user-sessions", async (req, res) => {
   const { updates } = req.body;
   try {
-    for (const update of updates) {
-      await db.update(users).set({ session: update.session }).where(eq(users.username, update.username));
-    }
+    await runWithSupabaseFallback(null, async (supabase) => {
+        for (const update of updates) {
+          const { error } = await supabase.from('users').update({ session: update.session }).eq('username', update.username);
+          if (error) throw error;
+        }
+      }
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Update sessions failed:", err);
@@ -547,7 +563,11 @@ app.post("/api/update-user-sessions", async (req, res) => {
 app.post("/api/reset-login", async (req, res) => {
   const { username } = req.body;
   try {
-    await db.update(users).set({ status: "OFFLINE" }).where(eq(users.username, username));
+    await runWithSupabaseFallback(null, async (supabase) => {
+        const { error } = await supabase.from('users').update({ status: "OFFLINE" }).eq('username', username);
+        if (error) throw error;
+      }
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Reset login failed:", err);
@@ -558,7 +578,12 @@ app.post("/api/reset-login", async (req, res) => {
 // 25. Get School Schedules
 app.get("/api/school-schedules", async (req, res) => {
   try {
-    const list = await db.select().from(schoolSchedules);
+    const list = await runWithSupabaseFallback(null, async (supabase) => {
+        const { data, error } = await supabase.from('school_schedules').select('*');
+        if (error) throw error;
+        return data || [];
+      }
+    );
     res.json({ list });
   } catch (err: any) {
     console.error("Get schedules failed:", err);
@@ -570,11 +595,14 @@ app.get("/api/school-schedules", async (req, res) => {
 app.post("/api/school-schedules", async (req, res) => {
   const { cleanSchedules } = req.body;
   try {
-    await db.delete(schoolSchedules).where(ne(schoolSchedules.school, ""));
-
-    if (cleanSchedules && cleanSchedules.length > 0) {
-      await db.insert(schoolSchedules).values(cleanSchedules);
-    }
+    await runWithSupabaseFallback(null, async (supabase) => {
+        await supabase.from('school_schedules').delete().neq('school', '');
+        if (cleanSchedules && cleanSchedules.length > 0) {
+          const { error } = await supabase.from('school_schedules').insert(cleanSchedules);
+          if (error) throw error;
+        }
+      }
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Save schedules failed:", err);
@@ -585,20 +613,19 @@ app.post("/api/school-schedules", async (req, res) => {
 // 27. Get Recap
 app.get("/api/recap", async (req, res) => {
   try {
-    const seList = await db.select().from(studentExams);
-    const uList = await db.select().from(users);
-    const eList = await db.select().from(exams);
+    const merged = await runWithSupabaseFallback(null, async (supabase) => {
+        const { data: seList, error: seErr } = await supabase.from('student_exams').select('*');
+        if (seErr) throw seErr;
+        const { data: uList } = await supabase.from('users').select('*');
+        const { data: eList } = await supabase.from('exams').select('*');
 
-    const merged = seList.map((se: any) => {
-      const userRow = uList.find((u: any) => u.username === se.user_id);
-      const examRow = eList.find((e: any) => e.id === se.exam_id);
-      return {
-        ...se,
-        users: userRow || null,
-        exams: examRow || null
-      };
-    });
-
+        return (seList || []).map((se: any) => ({
+          ...se,
+          users: (uList || []).find((u: any) => u.username === se.user_id) || null,
+          exams: (eList || []).find((e: any) => e.id === se.exam_id) || null
+        }));
+      }
+    );
     res.json({ list: merged });
   } catch (err: any) {
     console.error("Get recap failed:", err);
@@ -610,30 +637,24 @@ app.get("/api/recap", async (req, res) => {
 app.get("/api/analysis", async (req, res) => {
   const subject = req.query.subject as string;
   try {
-    const seList = await db.select().from(studentExams).where(eq(studentExams.exam_id, subject));
-    if (seList.length === 0) {
-      return res.json({ list: [] });
-    }
+    const merged = await runWithSupabaseFallback(null, async (supabase) => {
+        const { data: seList, error: seErr } = await supabase.from('student_exams').select('*').eq('exam_id', subject);
+        if (seErr) throw seErr;
+        if (!seList || seList.length === 0) return [];
 
-    const seIds = seList.map((se: any) => se.id);
-    const ansList = await db.select().from(answers).where(inArray(answers.student_exam_id, seIds));
-    const qList = await db.select().from(questions).where(eq(questions.exam_id, subject));
+        const seIds = seList.map((se: any) => se.id);
+        const { data: ansList } = await supabase.from('answers').select('*').in('student_exam_id', seIds);
+        const { data: qList } = await supabase.from('questions').select('*').eq('exam_id', subject);
 
-    const merged = seList.map((se: any) => {
-      const seAnswers = ansList.filter((a: any) => a.student_exam_id === se.id).map((a: any) => {
-        const qRow = qList.find((q: any) => q.id === a.question_id);
-        return {
-          ...a,
-          questions: qRow || null
-        };
-      });
-
-      return {
-        ...se,
-        answers: seAnswers
-      };
-    });
-
+        return seList.map((se: any) => ({
+          ...se,
+          answers: (ansList || []).filter((a: any) => a.student_exam_id === se.id).map((a: any) => ({
+            ...a,
+            questions: (qList || []).find((q: any) => q.id === a.question_id) || null
+          }))
+        }));
+      }
+    );
     res.json({ list: merged });
   } catch (err: any) {
     console.error("Get analysis failed:", err);
@@ -645,16 +666,11 @@ app.get("/api/analysis", async (req, res) => {
 app.post("/api/external-grades", async (req, res) => {
   const { list } = req.body;
   try {
-    for (const item of list) {
-      if (item.id) {
-        await db.insert(externalGrades).values(item).onConflictDoUpdate({
-          target: externalGrades.id,
-          set: item
-        });
-      } else {
-        await db.insert(externalGrades).values(item);
+    await runWithSupabaseFallback(null, async (supabase) => {
+        const { error } = await supabase.from('external_grades').upsert(list);
+        if (error) throw error;
       }
-    }
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Save grades failed:", err);
@@ -666,24 +682,27 @@ app.post("/api/external-grades", async (req, res) => {
 app.post("/api/submit-exam", async (req, res) => {
   const { user_id, exam_id, status, answersList } = req.body;
   try {
-    const inserted = await db.insert(studentExams).values({
-      user_id,
-      exam_id,
-      status,
-      waktu_submit: new Date()
-    }).returning();
+    await runWithSupabaseFallback(null, async (supabase) => {
+        const { data, error } = await supabase.from('student_exams').insert({
+          user_id,
+          exam_id,
+          status,
+          waktu_submit: new Date().toISOString()
+        }).select();
+        if (error) throw error;
 
-    const studentExam = inserted[0];
-
-    if (answersList && answersList.length > 0) {
-      const answersToInsert = answersList.map((a: any) => ({
-        student_exam_id: studentExam.id,
-        question_id: a.question_id,
-        option_id: a.option_id
-      }));
-      await db.insert(answers).values(answersToInsert);
-    }
-
+        const se = data?.[0];
+        if (se && answersList && answersList.length > 0) {
+          const answersToInsert = answersList.map((a: any) => ({
+            student_exam_id: se.id,
+            question_id: a.question_id,
+            option_id: a.option_id
+          }));
+          const { error: aErr } = await supabase.from('answers').insert(answersToInsert);
+          if (aErr) throw aErr;
+        }
+      }
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Submit exam failed:", err);
@@ -695,19 +714,21 @@ app.post("/api/submit-exam", async (req, res) => {
 app.get("/api/survey/questions", async (req, res) => {
   const surveyType = req.query.surveyType as string;
   try {
-    const qList = await db.select().from(questions).where(eq(questions.exam_id, surveyType));
-    if (qList.length === 0) {
-      return res.json({ list: [] });
-    }
+    const merged = await runWithSupabaseFallback(null, async (supabase) => {
+        const { data: qList, error: qErr } = await supabase.from('questions').select('*').eq('exam_id', surveyType);
+        if (qErr) throw qErr;
+        if (!qList || qList.length === 0) return [];
 
-    const qIds = qList.map((q: any) => q.id);
-    const optList = await db.select().from(options).where(inArray(options.question_id, qIds));
+        const qIds = qList.map((q: any) => q.id);
+        const { data: optList, error: optErr } = await supabase.from('options').select('*').in('question_id', qIds);
+        if (optErr) throw optErr;
 
-    const merged = qList.map((q: any) => ({
-      ...q,
-      options: optList.filter((o: any) => o.question_id === q.id)
-    }));
-
+        return qList.map((q: any) => ({
+          ...q,
+          options: (optList || []).filter((o: any) => o.question_id === q.id)
+        }));
+      }
+    );
     res.json({ list: merged });
   } catch (err: any) {
     console.error("Get survey questions failed:", err);
@@ -719,12 +740,16 @@ app.get("/api/survey/questions", async (req, res) => {
 app.post("/api/survey/submit", async (req, res) => {
   const { user_id, surveyType } = req.body;
   try {
-    await db.insert(studentExams).values({
-      user_id,
-      exam_id: surveyType,
-      status: "completed",
-      waktu_submit: new Date()
-    });
+    await runWithSupabaseFallback(null, async (supabase) => {
+        const { error } = await supabase.from('student_exams').insert({
+          user_id,
+          exam_id: surveyType,
+          status: "completed",
+          waktu_submit: new Date().toISOString()
+        });
+        if (error) throw error;
+      }
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Submit survey failed:", err);
@@ -736,19 +761,20 @@ app.post("/api/survey/submit", async (req, res) => {
 app.get("/api/survey/recap", async (req, res) => {
   const surveyType = req.query.surveyType as string;
   try {
-    const seList = await db.select().from(studentExams).where(eq(studentExams.exam_id, surveyType));
-    if (seList.length === 0) {
-      return res.json({ list: [] });
-    }
+    const merged = await runWithSupabaseFallback(null, async (supabase) => {
+        const { data: seList, error: seErr } = await supabase.from('student_exams').select('*').eq('exam_id', surveyType);
+        if (seErr) throw seErr;
+        if (!seList || seList.length === 0) return [];
 
-    const seIds = seList.map((se: any) => se.id);
-    const ansList = await db.select().from(answers).where(inArray(answers.student_exam_id, seIds));
+        const seIds = seList.map((se: any) => se.id);
+        const { data: ansList } = await supabase.from('answers').select('*').in('student_exam_id', seIds);
 
-    const merged = seList.map((se: any) => ({
-      ...se,
-      answers: ansList.filter((a: any) => a.student_exam_id === se.id)
-    }));
-
+        return seList.map((se: any) => ({
+          ...se,
+          answers: (ansList || []).filter((a: any) => a.student_exam_id === se.id)
+        }));
+      }
+    );
     res.json({ list: merged });
   } catch (err: any) {
     console.error("Get survey recap failed:", err);
@@ -759,7 +785,12 @@ app.get("/api/survey/recap", async (req, res) => {
 // 34. Get LCC Teams
 app.get("/api/lcc-teams", async (req, res) => {
   try {
-    const list = await db.select().from(lccTeams);
+    const list = await runWithSupabaseFallback(null, async (supabase) => {
+        const { data, error } = await supabase.from('lcc_teams').select('*');
+        if (error) throw error;
+        return data || [];
+      }
+    );
     res.json({ list });
   } catch (err: any) {
     console.error("Get LCC teams failed:", err);
@@ -771,11 +802,14 @@ app.get("/api/lcc-teams", async (req, res) => {
 app.post("/api/lcc-teams", async (req, res) => {
   const { teams } = req.body;
   try {
-    await db.delete(lccTeams).where(ne(lccTeams.id, ""));
-
-    if (teams && teams.length > 0) {
-      await db.insert(lccTeams).values(teams);
-    }
+    await runWithSupabaseFallback(null, async (supabase) => {
+        await supabase.from('lcc_teams').delete().neq('id', '');
+        if (teams && teams.length > 0) {
+          const { error } = await supabase.from('lcc_teams').insert(teams);
+          if (error) throw error;
+        }
+      }
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Save LCC teams failed:", err);
@@ -787,7 +821,11 @@ app.post("/api/lcc-teams", async (req, res) => {
 app.delete("/api/lcc-teams", async (req, res) => {
   const id = req.query.id as string;
   try {
-    await db.delete(lccTeams).where(eq(lccTeams.id, id));
+    await runWithSupabaseFallback(null, async (supabase) => {
+        const { error } = await supabase.from('lcc_teams').delete().eq('id', id);
+        if (error) throw error;
+      }
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Delete LCC team failed:", err);
@@ -798,7 +836,12 @@ app.delete("/api/lcc-teams", async (req, res) => {
 // 37. Get LCC Questions
 app.get("/api/lcc-questions", async (req, res) => {
   try {
-    const list = await db.select().from(lccQuestions);
+    const list = await runWithSupabaseFallback(null, async (supabase) => {
+        const { data, error } = await supabase.from('lcc_questions').select('*');
+        if (error) throw error;
+        return data || [];
+      }
+    );
     res.json({ list });
   } catch (err: any) {
     console.error("Get LCC questions failed:", err);
@@ -810,10 +853,11 @@ app.get("/api/lcc-questions", async (req, res) => {
 app.post("/api/lcc-questions", async (req, res) => {
   const q = req.body;
   try {
-    await db.insert(lccQuestions).values(q).onConflictDoUpdate({
-      target: lccQuestions.id,
-      set: q
-    });
+    await runWithSupabaseFallback(null, async (supabase) => {
+        const { error } = await supabase.from('lcc_questions').upsert(q, { onConflict: 'id' });
+        if (error) throw error;
+      }
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Save LCC question failed:", err);
@@ -825,10 +869,14 @@ app.post("/api/lcc-questions", async (req, res) => {
 app.post("/api/lcc-questions/batch", async (req, res) => {
   const { questions: list } = req.body;
   try {
-    await db.delete(lccQuestions).where(ne(lccQuestions.id, ""));
-    if (list && list.length > 0) {
-      await db.insert(lccQuestions).values(list);
-    }
+    await runWithSupabaseFallback(null, async (supabase) => {
+        await supabase.from('lcc_questions').delete().neq('id', '');
+        if (list && list.length > 0) {
+          const { error } = await supabase.from('lcc_questions').insert(list);
+          if (error) throw error;
+        }
+      }
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Batch LCC questions failed:", err);
@@ -840,7 +888,11 @@ app.post("/api/lcc-questions/batch", async (req, res) => {
 app.delete("/api/lcc-questions", async (req, res) => {
   const id = req.query.id as string;
   try {
-    await db.delete(lccQuestions).where(eq(lccQuestions.id, id));
+    await runWithSupabaseFallback(null, async (supabase) => {
+        const { error } = await supabase.from('lcc_questions').delete().eq('id', id);
+        if (error) throw error;
+      }
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Delete LCC question failed:", err);
@@ -851,8 +903,13 @@ app.delete("/api/lcc-questions", async (req, res) => {
 // 41. Get LCC Config
 app.get("/api/lcc-config", async (req, res) => {
   try {
-    const configRow = await db.select().from(lccConfig).where(eq(lccConfig.key, "main")).limit(1);
-    res.json({ config: configRow[0]?.config || null });
+    const config = await runWithSupabaseFallback(null, async (supabase) => {
+        const { data, error } = await supabase.from('lcc_config').select('*').eq('key', 'main').single();
+        if (error && error.code !== 'PGRST116') throw error;
+        return data?.config || null;
+      }
+    );
+    res.json({ config });
   } catch (err: any) {
     console.error("Get LCC config failed:", err);
     res.status(500).json({ error: err.message });
@@ -863,10 +920,11 @@ app.get("/api/lcc-config", async (req, res) => {
 app.post("/api/lcc-config", async (req, res) => {
   const { config } = req.body;
   try {
-    await db.insert(lccConfig).values({ key: "main", config }).onConflictDoUpdate({
-      target: lccConfig.key,
-      set: { config }
-    });
+    await runWithSupabaseFallback(null, async (supabase) => {
+        const { error } = await supabase.from('lcc_config').upsert({ key: "main", config }, { onConflict: 'key' });
+        if (error) throw error;
+      }
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Save LCC config failed:", err);
@@ -877,7 +935,12 @@ app.post("/api/lcc-config", async (req, res) => {
 // 43. Get LCC History
 app.get("/api/lcc-history", async (req, res) => {
   try {
-    const list = await db.select().from(lccHistory).orderBy(desc(lccHistory.timestamp));
+    const list = await runWithSupabaseFallback(null, async (supabase) => {
+        const { data, error } = await supabase.from('lcc_history').select('*').order('timestamp', { ascending: false });
+        if (error) throw error;
+        return data || [];
+      }
+    );
     res.json({ list });
   } catch (err: any) {
     console.error("Get LCC history failed:", err);
@@ -889,10 +952,14 @@ app.get("/api/lcc-history", async (req, res) => {
 app.post("/api/lcc-history", async (req, res) => {
   const { history } = req.body;
   try {
-    await db.delete(lccHistory).where(ne(lccHistory.id, "00000000-0000-0000-0000-000000000000"));
-    if (history && history.length > 0) {
-      await db.insert(lccHistory).values(history);
-    }
+    await runWithSupabaseFallback(null, async (supabase) => {
+        await supabase.from('lcc_history').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        if (history && history.length > 0) {
+          const { error } = await supabase.from('lcc_history').insert(history);
+          if (error) throw error;
+        }
+      }
+    );
     res.json({ success: true });
   } catch (err: any) {
     console.error("Save LCC history failed:", err);
