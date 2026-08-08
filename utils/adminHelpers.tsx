@@ -17,15 +17,16 @@ export const getSchoolOnly = (schoolStr?: string): string => {
 
 // DAFTAR MAPEL BAKU & KODE ID
 export const DEFAULT_SUBJECTS_DB = [
-    { id: "PAI", label: "Pendidikan Agama Islam" },
-    { id: "PKN", label: "Pendidikan Pancasila" },
-    { id: "BIN", label: "Bahasa Indonesia" }, 
-    { id: "MTK", label: "Matematika" },
+    { id: "Pengetahuan Umum", label: "Pengetahuan Umum" },
+    { id: "PAI", label: "PAI" },
+    { id: "Pendidikan Pancasila", label: "Pendidikan Pancasila" },
+    { id: "Bahasa Indonesia", label: "Bahasa Indonesia" },
+    { id: "Matematika", label: "Matematika" },
     { id: "IPAS", label: "IPAS" },
-    { id: "SENI", label: "Seni" },
+    { id: "Seni Rupa", label: "Seni Rupa" },
     { id: "PJOK", label: "PJOK" },
-    { id: "BJW", label: "Bahasa Jawa" }, 
-    { id: "ING", label: "Bahasa Inggris" } 
+    { id: "Bahasa Inggris", label: "Bahasa Inggris" },
+    { id: "Bahasa Jawa", label: "Bahasa Jawa" }
 ];
 
 export const DEFAULT_EXAM_TYPES = [

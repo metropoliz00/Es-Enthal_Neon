@@ -159,7 +159,10 @@ const BankSoalTab = () => {
 
     const handleEdit = (q: QuestionRow) => {
         setIsModalSaved(false);
-        setCurrentQ(q);
+        setCurrentQ({
+            ...q,
+            mapel: q.mapel || selectedSubject
+        });
         setModalOpen(true);
     };
 
@@ -180,7 +183,8 @@ const BankSoalTab = () => {
             kelas: filterKelas !== 'all' ? filterKelas : '',
             tp_id: '',
             jenis_ujian: filterJenisUjian !== 'all' ? filterJenisUjian : '', // Init Jenis Ujian
-            kode_paket: '' // Init Kode Paket
+            kode_paket: '', // Init Kode Paket
+            mapel: selectedSubject || (subjectsDb[0]?.label || 'Pengetahuan Umum')
         });
         setModalOpen(true);
     };
@@ -246,7 +250,8 @@ const BankSoalTab = () => {
                 kelas: filterKelas !== 'all' ? filterKelas : '',
                 tp_id: '',
                 jenis_ujian: filterJenisUjian !== 'all' ? filterJenisUjian : '',
-                kode_paket: ''
+                kode_paket: '',
+                mapel: selectedSubject || (subjectsDb[0]?.label || 'Pengetahuan Umum')
             });
             setIsModalSaved(false);
             showToast("Form dibersihkan. Siap untuk input soal baru!", "info");
@@ -255,7 +260,8 @@ const BankSoalTab = () => {
 
         setLoadingData(true);
         const finalQ = { ...currentQ, kunci_jawaban: (currentQ.kunci_jawaban || '').toUpperCase() };
-        const res = await api.saveQuestion(selectedSubject, finalQ);
+        const targetMapel = currentQ.mapel || selectedSubject;
+        const res = await api.saveQuestion(targetMapel, finalQ);
         if (res.success) {
             showToast("Soal berhasil disimpan ke database!", "success");
             setIsModalSaved(true);
@@ -735,6 +741,20 @@ const BankSoalTab = () => {
                                             <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Kode Paket</label>
                                             <input type="text" className="w-full font-bold text-slate-700 text-sm outline-none bg-transparent" value={currentQ.kode_paket || ''} onChange={e => setCurrentQ({...currentQ, kode_paket: e.target.value})} placeholder="Kode Paket" />
                                         </div>
+                                    </div>
+
+                                    {/* Kategori Mapel Selector */}
+                                    <div className="bg-white p-3 rounded-xl border border-slate-200">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Kategori Mapel</label>
+                                        <select 
+                                            className="w-full font-bold text-slate-700 text-sm outline-none bg-transparent cursor-pointer" 
+                                            value={currentQ.mapel || selectedSubject} 
+                                            onChange={e => setCurrentQ({...currentQ, mapel: e.target.value})}
+                                        >
+                                            {subjectsDb.map(s => (
+                                                <option key={s.id || s.label} value={s.label}>{s.label}</option>
+                                            ))}
+                                        </select>
                                     </div>
 
                                     {/* Jenis Ujian Selector */}

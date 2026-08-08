@@ -66,6 +66,7 @@ export interface QuestionRow {
   tp_id?: string; 
   jenis_ujian?: string; // NEW: Filter Jenis Ujian
   kode_paket?: string; // NEW: Kode Paket Soal
+  mapel?: string; // NEW: Subject Category
 }
 
 // 4. Tabel Options (Pilihan Jawaban)

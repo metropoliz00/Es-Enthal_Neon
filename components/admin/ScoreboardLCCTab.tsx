@@ -13,7 +13,7 @@ import { soundFx } from '../../utils/scoreboardAudio';
 import { useToast } from '../../context/ToastContext';
 import { User } from '../../types';
 import { api } from '../../src/services/api';
-import { TeamMemberBadge, parseTeamAndMembers, syncTeamsWithParticipants } from '../../utils/adminHelpers';
+import { TeamMemberBadge, parseTeamAndMembers, syncTeamsWithParticipants, getSubjects } from '../../utils/adminHelpers';
 import ConfirmationModal from '../ui/ConfirmationModal';
 
 export interface LccTeam {
@@ -2457,13 +2457,15 @@ export const ScoreboardLCCTab: React.FC<ScoreboardLCCTabProps> = ({ forceScorebo
 
                                 <div>
                                     <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Kategori / Mapel</label>
-                                    <input
-                                        type="text"
-                                        placeholder="Kategori / Mapel"
+                                    <select
                                         value={questionForm.kategori}
                                         onChange={e => updateQuestionForm({ kategori: e.target.value })}
-                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"
-                                    />
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 cursor-pointer"
+                                    >
+                                        {getSubjects(config as unknown as Record<string, string>).map(s => (
+                                            <option key={s.id || s.label} value={s.label}>{s.label}</option>
+                                        ))}
+                                    </select>
                                 </div>
 
                                 <div>

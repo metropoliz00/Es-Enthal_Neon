@@ -434,7 +434,8 @@ export const api = {
                   kelas: q.kelas || '',
                   tp_id: q.tp_id || '',
                   jenis_ujian: q.jenis_ujian || '',
-                  kode_paket: ''
+                  kode_paket: '',
+                  mapel: subject
               };
           });
       } catch (e) {
