@@ -80,7 +80,8 @@ CREATE TABLE IF NOT EXISTS public.questions (
     tp_id TEXT,
     caption TEXT,
     jenis_ujian TEXT,
-    kode_paket TEXT
+    kode_paket TEXT,
+    mapel TEXT
 );
 
 -- Pastikan kolom tambahan pada tabel questions jika tabel sudah ada sebelumnya
@@ -89,6 +90,7 @@ ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS jenis_ujian TEXT;
 ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS kode_paket TEXT;
 ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS tp_id TEXT;
 ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS kelas TEXT;
+ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS mapel TEXT;
 
 -- 4. Options Table
 CREATE TABLE IF NOT EXISTS public.options (

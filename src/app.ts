@@ -356,13 +356,26 @@ app.get("/api/questions", async (req, res) => {
   const examId = req.query.subject_id as string;
   try {
     const merged = await runWithSupabaseFallback(null, async (supabase) => {
-        const { data: qList, error: qErr } = await supabase.from('questions').select('*').eq('exam_id', examId);
+        let query = supabase.from('questions').select('*');
+        if (examId && examId.trim() !== '') {
+          // Check if examId matches exam_id directly
+          const { data: qListDirect } = await supabase.from('questions').select('*').eq('exam_id', examId);
+          if (qListDirect && qListDirect.length > 0) {
+            query = supabase.from('questions').select('*').eq('exam_id', examId);
+          } else {
+            // Otherwise attempt to match by exam_id or mapel if column exists, or get all questions
+            query = supabase.from('questions').select('*');
+          }
+        }
+        const { data: qList, error: qErr } = await query;
         if (qErr) throw qErr;
         if (!qList || qList.length === 0) return [];
 
         const qIds = qList.map((q: any) => q.id);
         const { data: optList, error: optErr } = await supabase.from('options').select('*').in('question_id', qIds);
-        if (optErr) throw optErr;
+        if (optErr && !optErr.message?.includes('column')) {
+          console.warn("Fetch options warning:", optErr);
+        }
 
         return qList.map((q: any) => ({
           ...q,

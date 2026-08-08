@@ -105,8 +105,13 @@ const BankSoalTab = () => {
         if (filterJenisUjian !== 'all') {
             if (filterJenisUjian === 'SUMATIF') {
                 res = res.filter(q => (q.jenis_ujian || '').toUpperCase().includes('SUMATIF'));
+            } else if (filterJenisUjian === 'LCC' || filterJenisUjian === 'LOMBA CERDAS CERMAT') {
+                res = res.filter(q => {
+                    const ju = (q.jenis_ujian || '').toUpperCase();
+                    return ju === 'LCC' || ju.includes('CERDAS CERMAT') || ju === 'LOMBA CERDAS CERMAT';
+                });
             } else {
-                res = res.filter(q => q.jenis_ujian === filterJenisUjian);
+                res = res.filter(q => (q.jenis_ujian || '').trim().toUpperCase() === filterJenisUjian.trim().toUpperCase());
             }
         }
 
@@ -308,9 +313,9 @@ const BankSoalTab = () => {
 
                 const idxId = findHeader("ID Soal", "ID", "No Soal", "Nomor Soal", "No.", "No");
                 const idxText = findHeader("Teks Soal", "Pertanyaan / Soal", "Pertanyaan", "Teks", "Soal");
-                const idxTipe = findHeader("Tipe Soal (PG/PGK/BS)", "Tipe Soal", "Tipe", "Jenis Soal");
+                const idxTipe = findHeader("Tipe Soal (PG/PGK/BS/URAIAN)", "Tipe Soal (PG/PGK/BS)", "Tipe Soal", "Tipe", "Jenis Soal");
                 const idxGambar = findHeader("Link Gambar / Teks Deskripsi", "Link Gambar", "Gambar", "Foto", "Url Gambar");
-                const idxCaption = findHeader("Keterangan Gambar / Teks Deskripsi", "Caption (Keterangan Gambar)", "Caption", "Keterangan Gambar", "Keterangan", "Deskripsi Gambar", "Deskripsi");
+                const idxCaption = findHeader("Keterangan Gambar / Teks Deskripsi (Caption)", "Keterangan Gambar / Teks Deskripsi", "Caption (Keterangan Gambar)", "Caption", "Keterangan Gambar", "Keterangan", "Deskripsi Gambar", "Deskripsi");
                 const idxOpsiA = findHeader("Opsi A", "Pilihan A", "A");
                 const idxOpsiB = findHeader("Opsi B", "Pilihan B", "B");
                 const idxOpsiC = findHeader("Opsi C", "Pilihan C", "C");
@@ -423,6 +428,10 @@ const BankSoalTab = () => {
                             const rowJenis = q.jenis_ujian.trim().toUpperCase();
                             if (isTargetSumatif) {
                                 if (!rowJenis.includes('SUMATIF')) {
+                                    invalidTypesSet.add(rowJenis);
+                                }
+                            } else if (targetJenis === 'LCC' || targetJenis === 'LOMBA CERDAS CERMAT') {
+                                if (rowJenis !== 'LCC' && !rowJenis.includes('CERDAS CERMAT')) {
                                     invalidTypesSet.add(rowJenis);
                                 }
                             } else {
@@ -568,18 +577,18 @@ const BankSoalTab = () => {
         const rows = [
             { 
                 "ID Soal": "Q1", 
-                "Link Gambar / Teks Deskripsi": "", 
-                "Keterangan Gambar / Teks Deskripsi": "Deskripsi / keterangan gambar...",
                 "Teks Soal": "Contoh Soal...", 
-                "Tipe Soal (PG/PGK/BS)": "PG", 
-                "Opsi A": "A", 
-                "Opsi B": "B", 
-                "Opsi C": "C", 
-                "Opsi D": "D", 
+                "Tipe Soal (PG/PGK/BS/URAIAN)": "PG", 
+                "Link Gambar / Teks Deskripsi": "", 
+                "Keterangan Gambar / Teks Deskripsi (Caption)": "Deskripsi / keterangan gambar...",
+                "Opsi A": "Pilihan A", 
+                "Opsi B": "Pilihan B", 
+                "Opsi C": "Pilihan C", 
+                "Opsi D": "Pilihan D", 
                 "Kunci Jawaban": "A", 
                 "Bobot": 10, 
                 "Kelas": "1", 
-                ...(isSumatif ? { "ID TP": "TP-01" } : {}),
+                "ID TP": isSumatif ? "TP-01" : "",
                 "Jenis Ujian": defaultJenisUjian, 
                 "Kode Paket Soal": "A",
                 "Kategori Mapel": selectedSubject 
@@ -599,10 +608,10 @@ const BankSoalTab = () => {
 
         const exportData = filteredQuestions.map(q => ({
             "ID Soal": q.id,
-            "Link Gambar / Teks Deskripsi": q.gambar || '',
-            "Keterangan Gambar / Teks Deskripsi": q.caption || '',
             "Teks Soal": q.text_soal || '',
-            "Tipe Soal (PG/PGK/BS)": q.tipe_soal || 'PG',
+            "Tipe Soal (PG/PGK/BS/URAIAN)": q.tipe_soal || 'PG',
+            "Link Gambar / Teks Deskripsi": q.gambar || '',
+            "Keterangan Gambar / Teks Deskripsi (Caption)": q.caption || '',
             "Opsi A": q.opsi_a || '',
             "Opsi B": q.opsi_b || '',
             "Opsi C": q.opsi_c || '',
@@ -726,12 +735,11 @@ const BankSoalTab = () => {
                                     No. {i + 1}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <div className="flex justify-between items-start">
+                                     <div className="flex justify-between items-start">
                                         <div className="flex-1 pr-4">
-                                            <div className="text-slate-800 font-medium text-sm leading-relaxed mb-2">{q.text_soal}</div>
                                             {q.gambar && (
                                                 isImage(q.gambar) ? (
-                                                    <div className="mt-2 mb-3">
+                                                    <div className="mt-1 mb-3">
                                                         <img 
                                                             src={q.gambar} 
                                                             alt="Soal" 
@@ -740,7 +748,7 @@ const BankSoalTab = () => {
                                                         />
                                                     </div>
                                                 ) : (
-                                                    <div className="mt-2 mb-3 p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl text-slate-700 text-xs font-normal leading-relaxed">
+                                                    <div className="mt-1 mb-3 p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl text-slate-700 text-xs font-normal leading-relaxed">
                                                         <span className="font-bold text-indigo-600 block text-[10px] uppercase mb-1 flex items-center gap-1">
                                                             <Type size={12}/> Deskripsi / Wacana Soal:
                                                         </span>
@@ -748,6 +756,7 @@ const BankSoalTab = () => {
                                                     </div>
                                                 )
                                             )}
+                                            <div className="text-slate-800 font-medium text-sm leading-relaxed">{q.text_soal}</div>
                                         </div>
                                         <div className="flex items-center gap-2 shrink-0">
                                             <button onClick={() => handleEdit(q)} className="p-2 text-amber-500 bg-amber-50 hover:bg-amber-100 rounded-xl transition" title="Edit Soal"><Edit size={16}/></button>
@@ -817,8 +826,8 @@ const BankSoalTab = () => {
              
              {/* EDIT MODAL - FULL EXPANDED BOX (Wide & Spacious, Zero Internal Scroll on Desktop) */}
              {modalOpen && currentQ && (
-                 <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-200">
-                     <div className="bg-white w-full max-w-[98vw] 2xl:max-w-[1700px] max-h-[96vh] rounded-[2rem] shadow-2xl flex flex-col overflow-hidden border border-slate-100 relative">
+                 <div className="fixed inset-0 z-50 flex items-start justify-center pt-3 md:pt-6 pb-6 px-3 md:px-6 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-200">
+                     <div className="bg-white w-full max-w-[98vw] 2xl:max-w-[1700px] max-h-[92vh] rounded-[2rem] shadow-2xl flex flex-col overflow-hidden border border-slate-100 relative">
                         
                         {/* Header */}
                         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
@@ -832,12 +841,6 @@ const BankSoalTab = () => {
                                 <p className="text-xs text-slate-400 font-bold ml-12 mt-0.5">
                                     Mata Pelajaran: <span className="text-indigo-600 font-extrabold">{selectedSubject}</span>
                                 </p>
-                            </div>
-                            <div className="flex gap-3">
-                                <button onClick={() => setModalOpen(false)} className="px-5 py-2 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition border border-transparent hover:border-slate-200 text-xs">Batal</button>
-                                <button type="submit" form="qForm" disabled={loadingData} className="px-6 py-2 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all active:scale-95 flex items-center gap-2 text-xs">
-                                    {loadingData ? <Loader2 size={16} className="animate-spin"/> : <Save size={16}/>} Simpan Soal
-                                </button>
                             </div>
                         </div>
 

@@ -341,7 +341,7 @@ const StudentExam: React.FC<StudentExamProps> = ({ exam, questions, userFullName
 
                       <div className="p-6 md:p-8 flex-1 overflow-y-auto custom-scrollbar">
                            {/* SPLIT LAYOUT CONTAINER */}
-                           <div className={`flex flex-col lg:flex-row gap-8 h-full ${fontSize==='lg'?'text-2xl':fontSize==='sm'?'text-base':'text-lg'}`}>
+                           <div className={`flex flex-col gap-6 h-full ${fontSize==='lg'?'text-2xl':fontSize==='sm'?'text-base':'text-lg'}`}>
                                 
                                 {/* LEFT SIDE: IMAGE OR TEXT DESCRIPTION (If Exists) */}
                                 {currentQ.gambar && (

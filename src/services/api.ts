@@ -555,7 +555,16 @@ export const api = {
           const res = await fetch(`/api/questions?subject_id=${encodeURIComponent(examId)}`);
           if (!res.ok) return [];
           const data = await res.json();
-          return (data.questions || []).map((q: any) => {
+          const list = (data.questions || []).filter((q: any) => {
+              // If q.exam_id matches stringToUuid(subject) or q.mapel matches subject, keep it
+              if (!subject) return true;
+              if (q.exam_id === examId) return true;
+              if (q.mapel && q.mapel.trim().toLowerCase() === subject.trim().toLowerCase()) return true;
+              // If q.exam_id is not specified or q has no mapel, keep it if there's no better match
+              return !q.exam_id && !q.mapel;
+          });
+
+          return list.map((q: any) => {
               const options = q.options || [];
               const sortedOptions = [...options].sort((a: any, b: any) => (a.id || '').localeCompare(b.id || ''));
               
@@ -586,7 +595,7 @@ export const api = {
                   tp_id: q.tp_id || '',
                   jenis_ujian: q.jenis_ujian || '',
                   kode_paket: q.kode_paket || '',
-                  mapel: subject
+                  mapel: q.mapel || subject
               };
           });
       } catch (e) {
@@ -595,10 +604,10 @@ export const api = {
       }
   },
   
-  saveQuestion: async (subject: string, data: QuestionRow): Promise<{success: boolean, message: string}> => {
+   saveQuestion: async (subject: string, data: QuestionRow): Promise<{success: boolean, message: string}> => {
       try {
           const examId = await ensureExamExists(subject);
-          const qId = stringToUuid(data.id ? (data.id.includes('-') ? data.id : `${subject}_${data.id}`) : `${subject}_q_${Date.now()}`);
+          const qId = data.id && data.id.trim() ? data.id.trim() : `Q_${Date.now()}`;
 
           const keys = (data.kunci_jawaban || '').toUpperCase();
           const optionsList = [
@@ -640,7 +649,7 @@ export const api = {
           const list = await Promise.all(questions.map(async data => {
               const targetSubject = data.mapel || subject;
               const examId = await ensureExamExists(targetSubject);
-              const qId = stringToUuid(data.id ? (data.id.includes('-') ? data.id : `${targetSubject}_${data.id}`) : `${targetSubject}_q_${Date.now()}_${Math.random()}`);
+              const qId = data.id && data.id.trim() ? data.id.trim() : `Q_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
               const keys = (data.kunci_jawaban || '').toUpperCase();
               const optionsList = [
                   { id: createOptionUuid(qId, 0), question_id: qId, text_jawaban: data.opsi_a || '', is_correct: keys.includes('A') },
@@ -684,7 +693,7 @@ export const api = {
 
   deleteQuestion: async (subject: string, id: string): Promise<{success: boolean, message: string}> => {
       try {
-          const qId = stringToUuid(id.includes('-') ? id : `${subject}_${id}`);
+          const qId = id;
           const res = await fetch("/api/questions", {
               method: "DELETE",
               headers: { "Content-Type": "application/json" },
@@ -694,7 +703,7 @@ export const api = {
               const res2 = await fetch("/api/questions", {
                   method: "DELETE",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ id })
+                  body: JSON.stringify({ id: stringToUuid(id.includes('-') ? id : `${subject}_${id}`) })
               });
               return { success: res2.ok, message: res2.ok ? 'Success' : 'Error deleting question' };
           }
