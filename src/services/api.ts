@@ -484,9 +484,10 @@ export const api = {
 
   importQuestions: async (subject: string, questions: QuestionRow[]): Promise<{success: boolean, message: string}> => {
       try {
-          const examId = await ensureExamExists(subject);
-          const list = questions.map(data => {
-              const qId = stringToUuid(data.id ? (data.id.includes('-') ? data.id : `${subject}_${data.id}`) : `${subject}_q_${Date.now()}_${Math.random()}`);
+          const list = await Promise.all(questions.map(async data => {
+              const targetSubject = data.mapel || subject;
+              const examId = await ensureExamExists(targetSubject);
+              const qId = stringToUuid(data.id ? (data.id.includes('-') ? data.id : `${targetSubject}_${data.id}`) : `${targetSubject}_q_${Date.now()}_${Math.random()}`);
               const keys = (data.kunci_jawaban || '').toUpperCase();
               const optionsList = [
                   { question_id: qId, text_jawaban: data.opsi_a || '', is_correct: keys.includes('A') },
@@ -505,11 +506,12 @@ export const api = {
                       gambar: data.gambar || null,
                       caption: data.caption || null,
                       kelas: data.kelas || null,
-                      tp_id: data.tp_id || null
+                      tp_id: data.tp_id || null,
+                      jenis_ujian: data.jenis_ujian || null
                   },
                   optionsList
               };
-          });
+          }));
 
           const res = await fetch("/api/questions/import", {
               method: "POST",

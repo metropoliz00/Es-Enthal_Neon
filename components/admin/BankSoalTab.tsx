@@ -313,6 +313,7 @@ const BankSoalTab = () => {
                 const idxCaption = findHeader("Caption (Keterangan Gambar)");
                 const idxJenis = findHeader("Jenis Ujian");
                 const idxPaket = findHeader("Kode Paket Soal");
+                const idxMapel = findHeader("Kategori Mapel") !== -1 ? findHeader("Kategori Mapel") : findHeader("Mapel");
                 
                 const parsedQuestions: QuestionRow[] = [];
                 for (let i = 1; i < data.length; i++) {
@@ -339,7 +340,8 @@ const BankSoalTab = () => {
                             tp_id: jenisUjian.includes('SUMATIF') ? String(val(idxTp) || "") : "",
                             caption: String(val(idxCaption) || ""),
                             jenis_ujian: jenisUjian,
-                            kode_paket: String(val(idxPaket) || "")
+                            kode_paket: String(val(idxPaket) || ""),
+                            mapel: String(val(idxMapel) || selectedSubject)
                         });
                     } else {
                         if (!row[0]) continue;
@@ -358,7 +360,8 @@ const BankSoalTab = () => {
                             tp_id: String(row[13] || "").toUpperCase().includes('SUMATIF') ? String(row[11] || "") : "",
                             caption: String(row[12] || ""), 
                             jenis_ujian: String(row[13] || "").toUpperCase(), 
-                            kode_paket: String(row[14] || "") 
+                            kode_paket: String(row[14] || ""),
+                            mapel: String(row[15] || selectedSubject)
                         });
                     }
                 }
@@ -482,7 +485,8 @@ const BankSoalTab = () => {
                 ...(isSumatif ? { "ID TP": "TP-01" } : {}),
                 "Caption (Keterangan Gambar)": "Deskripsi gambar...", 
                 "Jenis Ujian": defaultJenisUjian, 
-                "Kode Paket Soal": "A" 
+                "Kode Paket Soal": "A",
+                "Kategori Mapel": selectedSubject 
             }
         ];
         const ws = XLSX.utils.json_to_sheet(rows);

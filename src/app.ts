@@ -350,7 +350,8 @@ app.post("/api/questions/import", async (req, res) => {
           gambar: item.question.gambar,
           caption: item.question.caption,
           kelas: item.question.kelas,
-          tp_id: item.question.tp_id
+          tp_id: item.question.tp_id,
+          jenis_ujian: item.question.jenis_ujian
         }
       });
 
