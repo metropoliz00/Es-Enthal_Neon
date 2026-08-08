@@ -589,8 +589,8 @@ const BankSoalTab = () => {
                     filteredQuestions.map((q, i) => (
                         <div key={i} className="bg-white rounded-2xl border border-slate-200 hover:border-indigo-200 hover:shadow-md transition-all group overflow-hidden">
                             <div className="p-5 flex items-start gap-4">
-                                <div className="bg-slate-100 text-slate-500 font-mono font-bold text-xs p-2 rounded-lg min-w-[3rem] text-center border border-slate-200 h-fit">
-                                    {q.id}
+                                <div className="bg-slate-100 text-slate-500 font-mono font-bold text-xs p-2 rounded-lg min-w-[3rem] text-center border border-slate-200 h-fit" title={`ID: ${q.id}`}>
+                                    No. {i + 1}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex justify-between items-start">
