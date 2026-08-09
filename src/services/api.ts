@@ -389,7 +389,7 @@ export const api = {
           const res = await fetch("/api/start-exam", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ username, subject })
+              body: JSON.stringify({ username, subject: stringToUuid(subject) })
           });
           return { success: res.ok };
       } catch (e) {
@@ -608,7 +608,8 @@ export const api = {
    saveQuestion: async (subject: string, data: QuestionRow): Promise<{success: boolean, message: string}> => {
       try {
           const examId = await ensureExamExists(subject);
-          const qId = data.id && data.id.trim() ? data.id.trim() : `Q_${Date.now()}`;
+          const rawId = data.id && data.id.trim() ? data.id.trim() : `Q_${Date.now()}`;
+          const qId = stringToUuid(rawId.includes('-') ? rawId : `${subject}_${rawId}`);
 
           const keys = (data.kunci_jawaban || '').toUpperCase();
           const optionsList = [
@@ -650,7 +651,8 @@ export const api = {
           const list = await Promise.all(questions.map(async data => {
               const targetSubject = data.mapel || subject;
               const examId = await ensureExamExists(targetSubject);
-              const qId = data.id && data.id.trim() ? data.id.trim() : `Q_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+              const rawId = data.id && data.id.trim() ? data.id.trim() : `Q_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+              const qId = stringToUuid(rawId.includes('-') ? rawId : `${targetSubject}_${rawId}`);
               const keys = (data.kunci_jawaban || '').toUpperCase();
               const optionsList = [
                   { id: createOptionUuid(qId, 0), question_id: qId, text_jawaban: data.opsi_a || '', is_correct: keys.includes('A') },
@@ -694,7 +696,7 @@ export const api = {
 
   deleteQuestion: async (subject: string, id: string): Promise<{success: boolean, message: string}> => {
       try {
-          const qId = id;
+          const qId = stringToUuid(id.includes('-') ? id : `${subject}_${id}`);
           const res = await fetch("/api/questions", {
               method: "DELETE",
               headers: { "Content-Type": "application/json" },
@@ -704,7 +706,7 @@ export const api = {
               const res2 = await fetch("/api/questions", {
                   method: "DELETE",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ id: stringToUuid(id.includes('-') ? id : `${subject}_${id}`) })
+                  body: JSON.stringify({ id })
               });
               return { success: res2.ok, message: res2.ok ? 'Success' : 'Error deleting question' };
           }
@@ -1009,7 +1011,7 @@ export const api = {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                   user_id: payload.user.username,
-                  exam_id: payload.subject,
+                  exam_id: stringToUuid(payload.subject),
                   status: 'completed',
                   answersList
               })

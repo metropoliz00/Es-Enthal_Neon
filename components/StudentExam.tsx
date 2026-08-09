@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Clock, Check, ChevronLeft, ChevronRight, LayoutGrid, Flag, Monitor, LogOut, Loader2, AlertTriangle, X, ShieldAlert, RotateCcw, ZoomIn, ZoomOut, Maximize, Move, HelpCircle, User, Type, Users, Bell, Edit3 } from 'lucide-react';
-import { isBereguExamType } from '../utils/adminHelpers';
+import { isBereguExamType, parseTeamAndMembers } from '../utils/adminHelpers';
 import LccReguBuzzerView from './LccReguBuzzerView';
 
 const isImageUrl = (val: string | undefined | null): boolean => {
@@ -26,6 +26,7 @@ interface StudentExamProps {
   userPhoto?: string;
   startTime: number;
   examType?: string; 
+  school?: string;
   onFinish: (answers: Record<string, UserAnswerValue>, questionCount: number, questionIds: string[], isTimeout?: boolean) => Promise<void> | void;
   onExit: () => void;
 }
@@ -92,7 +93,7 @@ const ImageViewer = ({ src, onClose }: { src: string; onClose: () => void }) => 
     );
 };
 
-const StudentExam: React.FC<StudentExamProps> = ({ exam, questions, userFullName, username, userPhoto, startTime, examType, onFinish, onExit }) => {
+const StudentExam: React.FC<StudentExamProps> = ({ exam, questions, userFullName, username, userPhoto, startTime, examType, school, onFinish, onExit }) => {
   const { showToast } = useToast();
   const [examQuestions, setExamQuestions] = useState<QuestionWithOptions[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -131,6 +132,7 @@ const StudentExam: React.FC<StudentExamProps> = ({ exam, questions, userFullName
                 const parsed = JSON.parse(saved);
                 if (parsed.answers) setAnswers(parsed.answers);
                 if (parsed.doubtful) setDoubtful(parsed.doubtful);
+                if (parsed.violationCount) setViolationCount(parsed.violationCount);
             }
         } catch(e) { console.error("Failed load saved", e); }
     }
@@ -138,10 +140,10 @@ const StudentExam: React.FC<StudentExamProps> = ({ exam, questions, userFullName
 
   // Auto Save
   useEffect(() => {
-      if (Object.keys(answers).length > 0) {
-          localStorage.setItem(storageKey, JSON.stringify({ answers, doubtful }));
+      if (Object.keys(answers).length > 0 || violationCount > 0) {
+          localStorage.setItem(storageKey, JSON.stringify({ answers, doubtful, violationCount }));
       }
-  }, [answers, doubtful, storageKey]);
+  }, [answers, doubtful, violationCount, storageKey]);
 
   // Timer & Auto Submit Logic
   useEffect(() => {
@@ -180,24 +182,184 @@ const StudentExam: React.FC<StudentExamProps> = ({ exam, questions, userFullName
     }
   };
 
-  // Anti-Cheat (Visibility API)
+  // State Refs to prevent stale closures in event listeners
+  const answersRef = useRef(answers);
+  const examQuestionsRef = useRef(examQuestions);
+  const appConfigRef = useRef(appConfig);
+  const lastViolationTime = useRef<number>(0);
+  const keysPressed = useRef<Set<string>>(new Set());
+
+  // Global Keyboard listener for locking and bypass combo (ctrl+CB)
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const isStrict = appConfigRef.current['EXAMBROWSER_MODE'] === 'on';
+      if (!isStrict) return;
+
+      const key = e.key.toLowerCase();
+      keysPressed.current.add(key);
+
+      const hasCtrl = e.ctrlKey || keysPressed.current.has('control');
+      const hasC = keysPressed.current.has('c');
+      const hasB = keysPressed.current.has('b');
+
+      // Check bypass key combo ctrl+CB
+      if (hasCtrl && hasC && hasB) {
+          e.preventDefault();
+          e.stopPropagation();
+          showToast("Exam Browser Bypass diaktifkan (Ctrl+CB)", "success");
+          // Exit fullscreen
+          if (document.fullscreenElement) {
+              document.exitFullscreen().catch(() => {});
+          }
+          // Reset violation count and let them exit
+          setIsLocked(false);
+          onExit();
+          return;
+      }
+
+      // Blocking keys that exit or switch context (Escape, F11, Alt, Meta, etc.)
+      if (e.key === 'Escape' || e.key === 'F11') {
+          e.preventDefault();
+          e.stopPropagation();
+          showToast("Tombol dinonaktifkan oleh Exam Browser", "warning");
+          return;
+      }
+
+      // If user is typing in an input or textarea, let them type
+      const activeEl = document.activeElement;
+      const isTyping = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
+
+      if (isTyping) {
+          // Inside input, allow alphanumeric keys but block meta/ctrl shortcuts that could switch pages or copy
+          if (e.ctrlKey && key !== 'c' && key !== 'b') { // Let C and B through for our bypass check
+              e.preventDefault();
+              e.stopPropagation();
+              return;
+          }
+          if (e.altKey || e.metaKey) {
+              e.preventDefault();
+              e.stopPropagation();
+              return;
+          }
+          return;
+      }
+
+      // If they are not typing, prevent default on ANY key to stop standard exits/scrolling/navigation
+      // except if it is Ctrl, C, or B (so they can enter the bypass combo)
+      if (key !== 'control' && key !== 'c' && key !== 'b') {
+          e.preventDefault();
+          e.stopPropagation();
+      }
+    };
+
+    const handleGlobalKeyUp = (e: KeyboardEvent) => {
+      keysPressed.current.delete(e.key.toLowerCase());
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown, true);
+    window.addEventListener('keyup', handleGlobalKeyUp, true);
+
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown, true);
+      window.removeEventListener('keyup', handleGlobalKeyUp, true);
+    };
+  }, [onExit]);
+
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
+
+  useEffect(() => {
+    examQuestionsRef.current = examQuestions;
+  }, [examQuestions]);
+
+  useEffect(() => {
+    appConfigRef.current = appConfig;
+  }, [appConfig]);
+
+  // Handle auto-lock check on initial load or appConfig load
+  useEffect(() => {
+    if (appConfig['EXAMBROWSER_MODE'] === 'on') {
+      if (!document.fullscreenElement) {
+        setIsLocked(false);
+      }
+    }
+  }, [appConfig]);
+
+  const triggerViolation = (reason: string) => {
+    const isStrict = appConfigRef.current['EXAMBROWSER_MODE'] === 'on';
+
+    const now = Date.now();
+    if (now - lastViolationTime.current < 2000) {
+        return; // debounce
+    }
+    lastViolationTime.current = now;
+
+    setViolationCount(prev => {
+        const nextCount = prev + 1;
+        showToast(`Pelanggaran terdeteksi: ${reason} (${nextCount}/3)`, "error");
+        
+        if (isStrict && nextCount >= 3) {
+            showToast("Batas pelanggaran terlampaui. Jawaban dikirim otomatis!", "error");
+            setTimeout(() => {
+                const qIds = examQuestionsRef.current.map(q => q.id);
+                onFinish(answersRef.current, examQuestionsRef.current.length, qIds, false);
+            }, 1500);
+        } else {
+            setIsLocked(false);
+        }
+        return nextCount;
+    });
+  };
+
+  // Anti-Cheat (Visibility API & Fullscreen change)
   useEffect(() => {
     const handleVisibilityChange = () => { 
         if (document.hidden) {
-             setViolationCount(prev => prev + 1);
-             setIsLocked(false);
+             triggerViolation("Meninggalkan layar ujian");
         }
     };
+
+    const handleFullscreenChange = () => {
+        if (appConfigRef.current['EXAMBROWSER_MODE'] === 'on') {
+            if (!document.fullscreenElement) {
+                triggerViolation("Keluar dari mode Layar Penuh (Fullscreen)");
+            }
+        }
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+    return () => {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        document.removeEventListener('fullscreenchange', handleFullscreenChange);
+        document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+        document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+        document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+    };
   }, []);
 
   const resumeExam = async () => {
-      if (violationCount >= 3) { showToast("Terlalu banyak pelanggaran. Ujian dihentikan.", "error"); onExit(); return; }
+      const isStrict = appConfigRef.current['EXAMBROWSER_MODE'] === 'on';
+      if (isStrict && violationCount >= 3) { 
+          showToast("Terlalu banyak pelanggaran. Ujian dihentikan.", "error"); 
+          onExit(); 
+          return; 
+      }
       try {
           const el = document.documentElement;
           if (el.requestFullscreen) await el.requestFullscreen();
-      } catch(e) {}
+          // @ts-ignore
+          else if (el.webkitRequestFullscreen) await el.webkitRequestFullscreen();
+          // @ts-ignore
+          else if (el.msRequestFullscreen) await el.msRequestFullscreen();
+      } catch(e) {
+          console.warn("Fullscreen request failed", e);
+      }
       setIsLocked(true);
   };
 
@@ -251,10 +413,20 @@ const StudentExam: React.FC<StudentExamProps> = ({ exam, questions, userFullName
       {!isLocked && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/90 pointer-events-auto">
               <div className="bg-white p-8 rounded-2xl max-w-md w-full text-center shadow-2xl">
-                  <ShieldAlert size={64} className="text-rose-500 mx-auto mb-4"/>
-                  <h2 className="text-2xl font-black text-slate-800">Pelanggaran Terdeteksi!</h2>
-                  <p className="text-slate-500 mt-2 mb-6">Anda meninggalkan layar ujian. Ini tercatat sebagai pelanggaran ({violationCount}/3).</p>
-                  <button onClick={resumeExam} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition">Kembali ke Ujian</button>
+                  <ShieldAlert size={64} className="text-rose-500 mx-auto mb-4 animate-bounce"/>
+                  {appConfig['EXAMBROWSER_MODE'] === 'on' && violationCount === 0 ? (
+                      <>
+                          <h2 className="text-2xl font-black text-slate-800">Layar Penuh Diperlukan!</h2>
+                          <p className="text-slate-500 mt-2 mb-6">Mode Exam Browser aktif. Anda wajib menggunakan mode Layar Penuh (Fullscreen) untuk mulai mengerjakan ujian ini.</p>
+                          <button onClick={resumeExam} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition">Masuk Layar Penuh & Mulai Ujian</button>
+                      </>
+                  ) : (
+                      <>
+                          <h2 className="text-2xl font-black text-slate-800">Pelanggaran Terdeteksi!</h2>
+                          <p className="text-slate-500 mt-2 mb-6">Anda meninggalkan layar ujian. Ini tercatat sebagai pelanggaran ({violationCount}/3).</p>
+                          <button onClick={resumeExam} className="w-full bg-rose-600 text-white py-3 rounded-xl font-bold hover:bg-rose-700 transition">Kembali ke Ujian</button>
+                      </>
+                  )}
               </div>
           </div>
       )}
@@ -283,19 +455,61 @@ const StudentExam: React.FC<StudentExamProps> = ({ exam, questions, userFullName
 
           {/* RIGHT: TIMER, IDENTITY & TOGGLE */}
           <div className="flex items-center gap-4">
+              {appConfig['EXAMBROWSER_MODE'] === 'on' && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 animate-pulse shrink-0">
+                      <ShieldAlert size={14} className="shrink-0 text-rose-600"/>
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider hidden sm:inline">Exam Browser ON ({violationCount}/3)</span>
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider sm:hidden">EB: {violationCount}/3</span>
+                  </div>
+              )}
               <div className={`flex items-center gap-2 px-3 md:px-4 py-2 rounded-full font-mono font-bold text-sm md:text-lg border shadow-sm ${timeLeft < 300 ? 'bg-rose-50 border-rose-200 text-rose-600 animate-pulse' : 'bg-white border-slate-200 text-slate-700'}`}>
                   <Clock size={18} className="shrink-0"/> {formatTime(timeLeft)}
               </div>
               
-              {/* USER IDENTITY */}
-              <div className="hidden md:flex flex-col items-end border-r border-slate-200 pr-4 mr-1">
-                  {isBereguExamType(examType) && (
-                      <span className="text-[9px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200 flex items-center gap-1 mb-0.5">
-                          <Users size={10}/> REGU LCC
-                      </span>
-                  )}
-                  <p className="font-bold text-slate-800 text-sm">{userFullName}</p>
-                  <p className="text-[10px] text-slate-500 font-mono">{isBereguExamType(examType) ? `Regu: ${username}` : username}</p>
+              {/* USER IDENTITY - HIGHLY ATTRACTIVE DISPLAY */}
+              <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200/80 px-3 py-1.5 rounded-full shadow-xs">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-black text-sm shadow-sm ring-2 ring-white overflow-hidden shrink-0">
+                      {userPhoto ? (
+                          <img src={userPhoto} className="w-full h-full object-cover" alt={userFullName} referrerPolicy="no-referrer" />
+                      ) : (
+                          (isBereguExamType(examType) ? parseTeamAndMembers(userFullName).reguTitle : userFullName).charAt(0).toUpperCase()
+                      )}
+                  </div>
+                  <div className="flex flex-col leading-tight text-left">
+                      {isBereguExamType(examType) ? (
+                          (() => {
+                              const { reguTitle } = parseTeamAndMembers(userFullName);
+                              return (
+                                  <>
+                                      <div className="flex items-center gap-1.5">
+                                          <span className="font-extrabold text-indigo-700 text-xs truncate max-w-[150px] uppercase tracking-wide" title={reguTitle}>
+                                              {reguTitle}
+                                          </span>
+                                          <span className="text-[8px] font-extrabold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200 flex items-center gap-0.5 shrink-0 uppercase tracking-wider">
+                                              <Users size={8}/> LCC
+                                          </span>
+                                      </div>
+                                      {school && (
+                                          <span className="text-[10px] font-bold text-slate-500 truncate max-w-[150px]" title={school}>
+                                              {school}
+                                          </span>
+                                      )}
+                                  </>
+                              );
+                          })()
+                      ) : (
+                          <>
+                              <span className="font-extrabold text-slate-800 text-xs truncate max-w-[150px]" title={userFullName}>
+                                  {userFullName}
+                              </span>
+                              {school && (
+                                  <span className="text-[10px] font-bold text-slate-500 truncate max-w-[150px]" title={school}>
+                                      {school}
+                                  </span>
+                              )}
+                          </>
+                      )}
+                  </div>
               </div>
 
               {/* SUBJECT & EXAM TYPE (Info Soal) */}
@@ -303,16 +517,6 @@ const StudentExam: React.FC<StudentExamProps> = ({ exam, questions, userFullName
                   <p className="font-black text-indigo-600 text-sm">{exam.nama_ujian}</p>
                   <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{examType || 'Sumatif'}</p>
               </div>
-
-              {/* LAYAR BEL REGU LCC BUTTON */}
-              <button 
-                  onClick={() => setShowBellModal(true)} 
-                  className="px-3 py-2 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-slate-950 font-black text-xs rounded-xl flex items-center gap-1.5 shadow-md shadow-amber-500/25 hover:scale-105 active:scale-95 transition border border-amber-300"
-                  title="Buka Layar Bel Regu LCC"
-              >
-                  <Bell size={16} className="animate-bounce fill-slate-950"/> 
-                  <span className="hidden sm:inline">LAYAR BEL</span>
-              </button>
 
               <button onClick={() => setIsSidebarOpen(true)} className="p-2.5 bg-slate-50 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 rounded-full border border-slate-200 transition">
                   <LayoutGrid size={20}/>
@@ -341,46 +545,36 @@ const StudentExam: React.FC<StudentExamProps> = ({ exam, questions, userFullName
 
                       <div className="p-6 md:p-8 flex-1 overflow-y-auto custom-scrollbar">
                            {/* SPLIT LAYOUT CONTAINER */}
-                           <div className={`flex flex-col gap-6 h-full ${fontSize==='lg'?'text-2xl':fontSize==='sm'?'text-base':'text-lg'}`}>
+                           <div className={`flex flex-col ${currentQ.gambar ? 'lg:flex-row lg:items-start gap-8 lg:gap-10' : 'gap-6'} h-full ${fontSize==='lg'?'text-2xl':fontSize==='sm'?'text-base':'text-lg'}`}>
                                 
                                 {/* LEFT SIDE: IMAGE OR TEXT DESCRIPTION (If Exists) */}
                                 {currentQ.gambar && (
-                                    isImageUrl(currentQ.gambar) ? (
-                                        <div className="lg:w-1/3 shrink-0">
-                                            <div className="rounded-xl border border-slate-200 p-2 bg-slate-50 relative group shadow-sm sticky top-0">
-                                                <img src={currentQ.gambar} className="w-full h-auto max-h-[500px] object-contain rounded-lg cursor-zoom-in bg-white" onClick={() => setZoomedImage(currentQ.gambar!)} />
-                                                <div className="absolute inset-0 flex items-center justify-center bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg pointer-events-none">
-                                                    <span className="bg-black/60 text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-1 backdrop-blur-sm"><Maximize size={12}/> Perbesar Gambar</span>
+                                    <div className="w-full lg:w-[45%] shrink-0 lg:sticky lg:top-0 lg:max-h-[calc(100vh-220px)] lg:overflow-y-auto pr-1 custom-scrollbar">
+                                        {isImageUrl(currentQ.gambar) ? (
+                                            <div className="space-y-4">
+                                                <div className="rounded-xl border border-slate-200 p-2 bg-slate-50 relative group shadow-sm">
+                                                    <img src={currentQ.gambar} className="w-full h-auto max-h-[400px] object-contain rounded-lg cursor-zoom-in bg-white mx-auto" onClick={() => setZoomedImage(currentQ.gambar!)} />
+                                                    <div className="absolute inset-0 flex items-center justify-center bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg pointer-events-none">
+                                                        <span className="bg-black/60 text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-1 backdrop-blur-sm"><Maximize size={12}/> Perbesar Gambar</span>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            {/* Added Caption from Database */}
-                                            {currentQ.caption ? (
-                                                <p className="text-center text-blue-600 text-sm font-bold mt-3 leading-relaxed animate-in fade-in slide-in-from-top-2">
-                                                    {currentQ.caption}
-                                                </p>
-                                            ) : (
-                                                <p className="text-center text-slate-400 text-xs font-medium mt-2 italic">
-                                                    Klik gambar untuk memperbesar
-                                                </p>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        <div className="lg:w-1/3 shrink-0">
-                                            <div className="rounded-2xl border border-indigo-200 p-5 bg-gradient-to-br from-indigo-50/80 to-blue-50/50 shadow-sm sticky top-0 space-y-3">
-                                                <div className="flex items-center gap-2 text-indigo-700 font-bold text-xs uppercase tracking-wider border-b border-indigo-100/80 pb-2">
-                                                    <Type size={14} className="text-indigo-600"/> Deskripsi / Wacana Soal
-                                                </div>
-                                                <div className="text-slate-800 text-sm md:text-base leading-relaxed font-normal whitespace-pre-line">
-                                                    {currentQ.gambar}
-                                                </div>
-                                                {currentQ.caption && (
-                                                    <p className="text-xs text-indigo-600 font-medium italic pt-2 border-t border-indigo-100">
+                                                {/* Added Caption from Database */}
+                                                {currentQ.caption ? (
+                                                    <p className="text-center text-blue-600 text-sm font-bold leading-relaxed animate-in fade-in slide-in-from-top-2">
                                                         {currentQ.caption}
+                                                    </p>
+                                                ) : (
+                                                    <p className="text-center text-slate-400 text-xs font-medium italic">
+                                                        Klik gambar untuk memperbesar
                                                     </p>
                                                 )}
                                             </div>
-                                        </div>
-                                    )
+                                        ) : (
+                                            <div className="rounded-xl border border-slate-200 p-6 bg-slate-50 shadow-sm whitespace-pre-line leading-relaxed font-semibold text-slate-800">
+                                                {currentQ.gambar}
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
 
                                 {/* RIGHT SIDE: CONTENT & OPTIONS */}

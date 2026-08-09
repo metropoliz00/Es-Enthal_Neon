@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
-import { Save, Loader2, Building, UserSquare, Calendar, Shield, School, UserCircle, Briefcase, Lock, Upload, Image as ImageIcon, AlertCircle, Plus, Trash2, ListChecks, BookOpen, ChevronDown, ChevronUp, Database, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
+import { Save, Loader2, Building, UserSquare, Calendar, Shield, School, UserCircle, Briefcase, Lock, Upload, Image as ImageIcon, AlertCircle, Plus, Trash2, ListChecks, BookOpen, ChevronDown, ChevronUp, Database, RefreshCw, CheckCircle2, XCircle, Monitor } from 'lucide-react';
 import { api } from '../../src/services/api';
 import { User } from '../../types';
 import { getSubjects, getExamTypes, getExamSubjectMapping } from '../../utils/adminHelpers';
@@ -275,6 +275,7 @@ ALTER TABLE public.lcc_history DISABLE ROW LEVEL SECURITY;
         logoKabupaten: '', 
         logoSekolah: '',
         faviconUrl: '',
+        examBrowserMode: 'off',
         examTypes: [] as { id: string, label: string }[],
         examTypesStatus: {} as Record<string, boolean>,
         examSignatories: {} as Record<string, { leftTitle: string, leftName: string, leftNip: string, rightTitle: string, rightName: string, rightNip: string }>,
@@ -364,6 +365,7 @@ ALTER TABLE public.lcc_history DISABLE ROW LEVEL SECURITY;
                     logoKabupaten: globalConfig['LOGO_KABUPATEN'] || '',
                     logoSekolah: globalConfig['LOGO_SEKOLAH'] || '',
                     faviconUrl: globalConfig['FAVICON_URL'] || 'https://image2url.com/r2/default/images/1772981483268-6fdcb4fb-dc32-43a1-b310-74b8dbd8e9b7.png',
+                    examBrowserMode: globalConfig['EXAMBROWSER_MODE'] || 'off',
                     examTypes: types,
                     examTypesStatus: parsedStatus,
                     examSignatories: parsedSignatories,
@@ -436,6 +438,7 @@ ALTER TABLE public.lcc_history DISABLE ROW LEVEL SECURITY;
                     'LOGO_SEKOLAH': formData.logoSekolah,
                     'FAVICON_URL': formData.faviconUrl,
                     'ACADEMIC_YEAR': formData.academicYear,
+                    'EXAMBROWSER_MODE': formData.examBrowserMode,
                     'EXAM_TYPES_DB': JSON.stringify(formData.examTypes),
                     'EXAM_TYPES_STATUS': JSON.stringify(formData.examTypesStatus),
                     'EXAM_SIGNATORIES': JSON.stringify(formData.examSignatories),
@@ -587,6 +590,53 @@ ALTER TABLE public.lcc_history DISABLE ROW LEVEL SECURITY;
                             </div>
                         </div>
                     )}
+                </div>
+
+                {/* Mode Exam Browser */}
+                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 relative overflow-hidden">
+                    {isGuru && (
+                        <div className="absolute top-0 right-0 bg-slate-200 text-slate-500 text-[10px] font-bold px-3 py-1 rounded-bl-xl border-l border-b border-slate-300 flex items-center gap-1">
+                            <Lock size={10} /> Read Only
+                        </div>
+                    )}
+                    <div className="flex justify-between items-center mb-4">
+                        <h4 className="font-bold text-slate-700 flex items-center gap-2 text-sm uppercase tracking-wide">
+                            <Monitor size={18} className="text-rose-500"/> Mode Exam Browser
+                        </h4>
+                    </div>
+                    <p className="text-slate-500 text-sm mb-4 leading-relaxed">
+                        Jika Mode Exam Browser diaktifkan (<strong>ON</strong>), siswa yang sedang mengikuti ujian wajib berada dalam mode layar penuh (fullscreen). 
+                        Apabila siswa keluar dari mode fullscreen sebanyak <strong>3 kali</strong>, sistem akan secara otomatis mengirimkan (submit) lembar jawaban ujian siswa tersebut. 
+                        Setiap kali siswa keluar dari fullscreen, notifikasi pelanggaran akan ditampilkan.
+                    </p>
+                    <div className="flex items-center gap-4">
+                        <button
+                            type="button"
+                            disabled={isGuru}
+                            onClick={() => setFormData(prev => ({ ...prev, examBrowserMode: 'on' }))}
+                            className={`flex-1 py-3 rounded-xl font-bold text-sm border-2 transition-all ${!isGuru ? 'active:scale-95' : 'opacity-80 cursor-not-allowed'} flex items-center justify-center gap-2 ${
+                                formData.examBrowserMode === 'on' 
+                                    ? 'bg-rose-50 border-rose-500 text-rose-700 shadow-sm' 
+                                    : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                             }`}
+                        >
+                            <span className={`w-2 h-2 rounded-full ${formData.examBrowserMode === 'on' ? 'bg-rose-500 animate-pulse' : 'bg-slate-300'}`}></span>
+                            Exam Browser AKTIF (ON)
+                        </button>
+                        <button
+                            type="button"
+                            disabled={isGuru}
+                            onClick={() => setFormData(prev => ({ ...prev, examBrowserMode: 'off' }))}
+                            className={`flex-1 py-3 rounded-xl font-bold text-sm border-2 transition-all ${!isGuru ? 'active:scale-95' : 'opacity-80 cursor-not-allowed'} flex items-center justify-center gap-2 ${
+                                formData.examBrowserMode === 'off' 
+                                    ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm' 
+                                    : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                            }`}
+                        >
+                            <span className={`w-2 h-2 rounded-full ${formData.examBrowserMode === 'off' ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
+                            Exam Browser NON-AKTIF (OFF)
+                        </button>
+                    </div>
                 </div>
 
                 {/* Section 1: Data Sekolah */}

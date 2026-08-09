@@ -8,7 +8,7 @@ import ScoreboardLCCTab from './components/admin/ScoreboardLCCTab';
 import LccReguBuzzerView from './components/LccReguBuzzerView';
 import { api } from './src/services/api';
 import { useToast } from './context/ToastContext';
-import { isBereguExamType } from './utils/adminHelpers';
+import { isBereguExamType, parseTeamAndMembers } from './utils/adminHelpers';
 import { motion, AnimatePresence } from 'motion/react';
 import { soundFx } from './utils/scoreboardAudio';
 
@@ -439,10 +439,12 @@ function App() {
                   <div className="flex items-center gap-3 bg-slate-800/80 border border-slate-700/60 py-1.5 px-4 rounded-full shadow-inner max-w-xs md:max-w-md">
                       <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></div>
                       <span className="text-xs font-semibold text-slate-300 truncate hidden md:inline">
-                          Regu Terkoneksi: <span className="font-black text-amber-400">{currentUser?.nama_lengkap}</span>
+                          Regu Terkoneksi: <span className="font-black text-amber-400">
+                              {isBereguExamType(currentUser?.exam_type) ? parseTeamAndMembers(currentUser?.nama_lengkap || '').reguTitle : currentUser?.nama_lengkap}
+                          </span>
                       </span>
                       <span className="text-xs font-black text-amber-400 truncate md:hidden">
-                          {currentUser?.nama_lengkap}
+                          {isBereguExamType(currentUser?.exam_type) ? parseTeamAndMembers(currentUser?.nama_lengkap || '').reguTitle : currentUser?.nama_lengkap}
                       </span>
                   </div>
               </header>
@@ -462,9 +464,14 @@ function App() {
                       <h2 className="text-3xl md:text-5xl font-black tracking-tight leading-tight">
                           Selamat Datang di <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-200 to-indigo-400 uppercase drop-shadow-sm">Layar Babak LCC</span>
                       </h2>
-                      <p className="text-slate-400 text-sm md:text-base max-w-xl mx-auto font-medium leading-relaxed">
-                          Halo, <span className="text-amber-400 font-extrabold">{currentUser?.nama_lengkap}</span> ({currentUser?.kelas_id || 'SD'}). Silakan pilih menu babak di bawah ini sesuai instruksi dari Panitia atau Juri.
-                      </p>
+                      <div className="text-slate-400 text-base md:text-lg max-w-xl mx-auto font-medium leading-relaxed flex flex-col gap-1">
+                          <p>
+                              Halo, <span className="text-amber-400 font-extrabold">{isBereguExamType(currentUser?.exam_type) ? parseTeamAndMembers(currentUser?.nama_lengkap || '').reguTitle : currentUser?.nama_lengkap}</span> <span className="text-slate-300 font-bold">({currentUser?.kelas_id || 'SD'})</span>
+                          </p>
+                          <p className="text-indigo-300/90 font-bold">
+                              Silahkan Pilih menu babak
+                          </p>
+                      </div>
                   </motion.div>
 
                   {/* Two Main Cards Grid */}
@@ -825,16 +832,17 @@ function App() {
                                 )}
                             </div>
                             <h2 className="text-xl font-bold text-slate-800 leading-tight mb-1">
-                                {currentUser?.nama_lengkap}
+                                {isBereguExamType(currentUser?.exam_type) ? parseTeamAndMembers(currentUser?.nama_lengkap || '').reguTitle : currentUser?.nama_lengkap}
                             </h2>
-                            <p className="text-slate-400 text-sm font-medium mb-4">{currentUser?.username}</p>
                             
                             <div className="w-full bg-slate-50 rounded-xl p-4 border border-slate-100 text-left space-y-3">
                                 <div>
                                     <p className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">
                                         {isBereguExamType(currentUser?.exam_type) ? "Nama Regu / Tim" : "Nama Peserta"}
                                     </p>
-                                    <p className="text-sm font-bold text-slate-700 truncate">{currentUser?.nama_lengkap}</p>
+                                    <p className="text-sm font-bold text-slate-700 truncate">
+                                        {isBereguExamType(currentUser?.exam_type) ? parseTeamAndMembers(currentUser?.nama_lengkap || '').reguTitle : currentUser?.nama_lengkap}
+                                    </p>
                                 </div>
                                 <div>
                                     <p className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">
@@ -928,7 +936,7 @@ function App() {
                                             disabled={loading || examList.length === 0}
                                             className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-8 rounded-xl shadow-lg shadow-indigo-200 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                         >
-                                            <PlayCircle size={20} /> {localStorage.getItem(`cbt_start_${currentUser?.username}_${selectedExamId}`) ? "Lanjutkan" : "Mulai Ujian"}
+                                            <PlayCircle size={20} /> {localStorage.getItem(`cbt_start_${currentUser?.username}_${selectedExamId}`) ? "Mulai" : "Mulai Ujian"}
                                         </button>
                                     </div>
                                 ) : (
@@ -983,6 +991,7 @@ function App() {
             userPhoto={currentUser.photo_url}
             startTime={startTime}
             examType={currentUser.exam_type || 'Sumatif'}
+            school={currentUser.kelas_id}
             onFinish={handleFinishExam}
             onExit={handleLogout}
         />

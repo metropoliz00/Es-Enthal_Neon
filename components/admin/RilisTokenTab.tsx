@@ -4,7 +4,7 @@ import { useToast } from '../../context/ToastContext';
 import { Key, RefreshCw, Save, X, Edit, Clock, Layers, ShieldCheck, Copy, Award, Calendar } from 'lucide-react';
 import { api } from '../../src/services/api';
 import { User, SchoolSchedule } from '../../types';
-import { getSchoolOnly } from '../../utils/adminHelpers';
+import { getSchoolOnly, formatIndonesianDate } from '../../utils/adminHelpers';
 
 const RilisTokenTab = ({ currentUser, token, duration, maxQuestions, kktp, surveyDuration, refreshData, isRefreshing, schedules, students }: { currentUser: User, token: string, duration: number, maxQuestions: number, kktp: number, surveyDuration: number, refreshData: () => void, isRefreshing: boolean, schedules: SchoolSchedule[], students: any[] }) => {
     const { showToast } = useToast();
@@ -247,8 +247,8 @@ const RilisTokenTab = ({ currentUser, token, duration, maxQuestions, kktp, surve
                                         <td className="p-3 font-bold text-slate-700">{getSchoolOnly(s.school)}</td>
                                         <td className="p-3 text-slate-600">{schoolKecMap[s.school] || '-'}</td>
                                         <td className="p-3 text-center text-slate-600 font-mono bg-slate-50/50">{s.gelombang}</td>
-                                        <td className="p-3 text-center text-slate-600">{s.tanggal}</td>
-                                        <td className="p-3 text-center text-slate-600">{s.tanggal_selesai || '-'}</td>
+                                        <td className="p-3 text-center text-slate-600 font-medium">{formatIndonesianDate(s.tanggal)}</td>
+                                        <td className="p-3 text-center text-slate-600 font-medium">{s.tanggal_selesai ? formatIndonesianDate(s.tanggal_selesai) : '-'}</td>
                                     </tr>
                                 ))
                             )}

@@ -15,6 +15,28 @@ export const getSchoolOnly = (schoolStr?: string): string => {
     return schoolStr.trim();
 };
 
+export const formatIndonesianDate = (dateStr: string): string => {
+    if (!dateStr) return '-';
+    // Clean up any timestamp parts (e.g. 2026-08-08T00:00:00+00:00 or 2026-08-08 00:00:00)
+    let cleanDate = dateStr.trim();
+    if (cleanDate.includes('T')) {
+        cleanDate = cleanDate.split('T')[0];
+    } else if (cleanDate.includes(' ')) {
+        cleanDate = cleanDate.split(' ')[0];
+    }
+    
+    const parts = cleanDate.split('-');
+    if (parts.length === 3) {
+        if (parts[0].length === 4) {
+            const year = parts[0];
+            const month = parts[1];
+            const day = parts[2];
+            return `${day} - ${month} - ${year}`;
+        }
+    }
+    return dateStr;
+};
+
 // DAFTAR MAPEL BAKU & KODE ID
 export const DEFAULT_SUBJECTS_DB = [
     { id: "Pengetahuan Umum", label: "Pengetahuan Umum" },
