@@ -6,7 +6,7 @@ export const getSupabaseUrl = (): string => {
         process.env.SUPABASE_URL ||
         process.env.VITE_SUPABASE_URL ||
         process.env.NEXT_PUBLIC_SUPABASE_URL ||
-        'https://klteevegsvzqhtvdgsbr.supabase.co'
+        ''
     ).trim().replace(/^["'<]+|["'>]+$/g, '');
 
     // If url is a PostgreSQL connection string (e.g. postgresql://postgres.ref:pass@host:port/postgres), convert to https://ref.supabase.co
@@ -20,19 +20,22 @@ export const getSupabaseUrl = (): string => {
             // ignore
         }
     }
-    return url || 'https://klteevegsvzqhtvdgsbr.supabase.co';
+
+    return url;
 };
 
 // Get Supabase Key (Service Role or Anon Key) from environment variables
 export const getSupabaseKey = (): string => {
-    return (
+    const key = (
         process.env.SUPABASE_SERVICE_ROLE_KEY ||
         process.env.SUPABASE_ANON_KEY ||
         process.env.SUPABASE_KEY ||
         process.env.VITE_SUPABASE_ANON_KEY ||
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-        'sb_publishable_gIb9RPDROEUZ0yHhOs-KrQ_LYPUJcmI'
+        ''
     ).trim().replace(/^["'<]+|["'>]+$/g, '');
+
+    return key;
 };
 
 let cachedClient: SupabaseClient | null = null;
@@ -50,18 +53,27 @@ export const getSupabaseClient = (): SupabaseClient | null => {
     }
 
     if (!cachedClient) {
-        cachedClient = createClient(url, key, {
-            auth: {
-                persistSession: false,
-                autoRefreshToken: false,
-            },
-        });
+        try {
+            cachedClient = createClient(url, key, {
+                auth: {
+                    persistSession: false,
+                    autoRefreshToken: false,
+                },
+            });
+        } catch (e) {
+            console.warn("Failed to initialize Supabase client:", e);
+            return null;
+        }
     }
 
     return cachedClient;
 };
 
 export const isSupabaseConfigured = (): boolean => {
-    return Boolean(getSupabaseClient());
+    const url = getSupabaseUrl();
+    const key = getSupabaseKey();
+    return Boolean(url && key && url.startsWith('http'));
 };
+
+
 

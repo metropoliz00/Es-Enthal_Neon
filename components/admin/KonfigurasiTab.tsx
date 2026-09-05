@@ -592,53 +592,6 @@ ALTER TABLE public.lcc_history DISABLE ROW LEVEL SECURITY;
                     )}
                 </div>
 
-                {/* Mode Exam Browser */}
-                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 relative overflow-hidden">
-                    {isGuru && (
-                        <div className="absolute top-0 right-0 bg-slate-200 text-slate-500 text-[10px] font-bold px-3 py-1 rounded-bl-xl border-l border-b border-slate-300 flex items-center gap-1">
-                            <Lock size={10} /> Read Only
-                        </div>
-                    )}
-                    <div className="flex justify-between items-center mb-4">
-                        <h4 className="font-bold text-slate-700 flex items-center gap-2 text-sm uppercase tracking-wide">
-                            <Monitor size={18} className="text-rose-500"/> Mode Exam Browser
-                        </h4>
-                    </div>
-                    <p className="text-slate-500 text-sm mb-4 leading-relaxed">
-                        Jika Mode Exam Browser diaktifkan (<strong>ON</strong>), siswa yang sedang mengikuti ujian wajib berada dalam mode layar penuh (fullscreen). 
-                        Apabila siswa keluar dari mode fullscreen sebanyak <strong>3 kali</strong>, sistem akan secara otomatis mengirimkan (submit) lembar jawaban ujian siswa tersebut. 
-                        Setiap kali siswa keluar dari fullscreen, notifikasi pelanggaran akan ditampilkan.
-                    </p>
-                    <div className="flex items-center gap-4">
-                        <button
-                            type="button"
-                            disabled={isGuru}
-                            onClick={() => setFormData(prev => ({ ...prev, examBrowserMode: 'on' }))}
-                            className={`flex-1 py-3 rounded-xl font-bold text-sm border-2 transition-all ${!isGuru ? 'active:scale-95' : 'opacity-80 cursor-not-allowed'} flex items-center justify-center gap-2 ${
-                                formData.examBrowserMode === 'on' 
-                                    ? 'bg-rose-50 border-rose-500 text-rose-700 shadow-sm' 
-                                    : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
-                             }`}
-                        >
-                            <span className={`w-2 h-2 rounded-full ${formData.examBrowserMode === 'on' ? 'bg-rose-500 animate-pulse' : 'bg-slate-300'}`}></span>
-                            Exam Browser AKTIF (ON)
-                        </button>
-                        <button
-                            type="button"
-                            disabled={isGuru}
-                            onClick={() => setFormData(prev => ({ ...prev, examBrowserMode: 'off' }))}
-                            className={`flex-1 py-3 rounded-xl font-bold text-sm border-2 transition-all ${!isGuru ? 'active:scale-95' : 'opacity-80 cursor-not-allowed'} flex items-center justify-center gap-2 ${
-                                formData.examBrowserMode === 'off' 
-                                    ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm' 
-                                    : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
-                            }`}
-                        >
-                            <span className={`w-2 h-2 rounded-full ${formData.examBrowserMode === 'off' ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
-                            Exam Browser NON-AKTIF (OFF)
-                        </button>
-                    </div>
-                </div>
-
                 {/* Section 1: Data Sekolah */}
                 <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 relative overflow-hidden">
                     {isGuru && (
@@ -1133,6 +1086,53 @@ ALTER TABLE public.lcc_history DISABLE ROW LEVEL SECURITY;
                                 />
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                {/* Mode Exam Browser */}
+                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 relative overflow-hidden">
+                    {isGuru && (
+                        <div className="absolute top-0 right-0 bg-slate-200 text-slate-500 text-[10px] font-bold px-3 py-1 rounded-bl-xl border-l border-b border-slate-300 flex items-center gap-1">
+                            <Lock size={10} /> Read Only
+                        </div>
+                    )}
+                    <div className="flex justify-between items-center mb-4">
+                        <h4 className="font-bold text-slate-700 flex items-center gap-2 text-sm uppercase tracking-wide">
+                            <Monitor size={18} className={formData.examBrowserMode === 'on' ? 'text-emerald-500' : 'text-rose-500'}/> Mode Exam Browser
+                        </h4>
+                    </div>
+                    <p className="text-slate-500 text-sm mb-4 leading-relaxed">
+                        Jika Mode Exam Browser diaktifkan (<strong>ON</strong>), siswa yang sedang mengikuti ujian wajib berada dalam mode layar penuh (fullscreen). 
+                        Apabila siswa keluar dari mode fullscreen sebanyak <strong>3 kali</strong>, sistem akan secara otomatis mengirimkan (submit) lembar jawaban ujian siswa tersebut. 
+                        Setiap kali siswa keluar dari fullscreen, notifikasi pelanggaran akan ditampilkan.
+                    </p>
+                    <div className="flex items-center gap-4">
+                        <button
+                            type="button"
+                            disabled={isGuru}
+                            onClick={() => setFormData(prev => ({ ...prev, examBrowserMode: 'on' }))}
+                            className={`flex-1 py-3 rounded-xl font-bold text-sm border-2 transition-all ${!isGuru ? 'active:scale-95' : 'opacity-80 cursor-not-allowed'} flex items-center justify-center gap-2 ${
+                                formData.examBrowserMode === 'on' 
+                                    ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm' 
+                                    : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                             }`}
+                        >
+                            <span className={`w-2 h-2 rounded-full ${formData.examBrowserMode === 'on' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`}></span>
+                            Exam Browser AKTIF (ON)
+                        </button>
+                        <button
+                            type="button"
+                            disabled={isGuru}
+                            onClick={() => setFormData(prev => ({ ...prev, examBrowserMode: 'off' }))}
+                            className={`flex-1 py-3 rounded-xl font-bold text-sm border-2 transition-all ${!isGuru ? 'active:scale-95' : 'opacity-80 cursor-not-allowed'} flex items-center justify-center gap-2 ${
+                                formData.examBrowserMode === 'off' 
+                                    ? 'bg-rose-50 border-rose-500 text-rose-700 shadow-sm' 
+                                    : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                            }`}
+                        >
+                            <span className={`w-2 h-2 rounded-full ${formData.examBrowserMode === 'off' ? 'bg-rose-500' : 'bg-slate-300'}`}></span>
+                            Exam Browser NON-AKTIF (OFF)
+                        </button>
                     </div>
                 </div>
             </div>

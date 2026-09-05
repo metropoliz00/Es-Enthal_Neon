@@ -652,7 +652,7 @@ const BankSoalTab = () => {
                                 {examTypes.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                             </select>
 
-                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-0 sm:ml-2">Database:</span>
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-0 sm:ml-2">Mapel Ujian:</span>
                             <select 
                                 className="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-1 outline-none cursor-pointer"
                                 value={selectedSubject}

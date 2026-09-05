@@ -297,17 +297,22 @@ const StudentExam: React.FC<StudentExamProps> = ({ exam, questions, userFullName
 
     setViolationCount(prev => {
         const nextCount = prev + 1;
-        showToast(`Pelanggaran terdeteksi: ${reason} (${nextCount}/3)`, "error");
         
-        if (isStrict && nextCount >= 3) {
-            showToast("Batas pelanggaran terlampaui. Jawaban dikirim otomatis!", "error");
-            setTimeout(() => {
-                const qIds = examQuestionsRef.current.map(q => q.id);
-                onFinish(answersRef.current, examQuestionsRef.current.length, qIds, false);
-            }, 1500);
-        } else {
-            setIsLocked(false);
-        }
+        // Defer side effects (updating other components/ToastProvider) to avoid React render errors
+        setTimeout(() => {
+            showToast(`Pelanggaran terdeteksi: ${reason} (${nextCount}/3)`, "error");
+            
+            if (isStrict && nextCount >= 3) {
+                showToast("Batas pelanggaran terlampaui. Jawaban dikirim otomatis!", "error");
+                setTimeout(() => {
+                    const qIds = examQuestionsRef.current.map(q => q.id);
+                    onFinish(answersRef.current, examQuestionsRef.current.length, qIds, false);
+                }, 1500);
+            } else {
+                setIsLocked(false);
+            }
+        }, 0);
+
         return nextCount;
     });
   };
@@ -398,7 +403,7 @@ const StudentExam: React.FC<StudentExamProps> = ({ exam, questions, userFullName
   const schoolLogo = appConfig['LOGO_SEKOLAH'] || "https://www.image2url.com/r2/default/images/1785421698382-3855a37b-f234-40a7-8038-1fe7b308a41e.png";
 
   return (
-    <div className={`flex flex-col h-screen bg-slate-100 font-sans overflow-hidden select-none ${!isLocked ? 'blur-sm pointer-events-none' : ''}`}>
+    <div className="flex flex-col h-screen bg-slate-100 font-sans overflow-hidden select-none relative">
       {zoomedImage && <ImageViewer src={zoomedImage} onClose={() => setZoomedImage(null)} />}
       {isSubmitting && (
           <div className="fixed inset-0 z-[100] bg-white/90 backdrop-blur flex items-center justify-center">
@@ -431,8 +436,10 @@ const StudentExam: React.FC<StudentExamProps> = ({ exam, questions, userFullName
           </div>
       )}
 
-      {/* HEADER - UPDATED BRANDING & USER IDENTITY */}
-      <header className="bg-white border-b border-slate-200 px-4 md:px-6 py-2 flex items-center justify-between shrink-0 z-20 shadow-sm relative h-auto">
+      {/* EXAM CONTENT - BLURRED WHEN LOCKED */}
+      <div className={`flex-1 flex flex-col min-h-0 ${!isLocked ? 'blur-sm pointer-events-none' : ''}`}>
+          {/* HEADER - UPDATED BRANDING & USER IDENTITY */}
+          <header className="bg-white border-b border-slate-200 px-4 md:px-6 py-2 flex items-center justify-between shrink-0 z-20 shadow-sm relative h-auto">
           {/* LEFT: BRANDING */}
           <div className="flex items-center gap-3 md:gap-4">
               <div className="w-10 h-10 md:w-11 md:h-11 bg-white rounded-xl flex items-center justify-center shadow-md shadow-slate-200 border border-slate-100 overflow-hidden relative shrink-0">
@@ -455,13 +462,6 @@ const StudentExam: React.FC<StudentExamProps> = ({ exam, questions, userFullName
 
           {/* RIGHT: TIMER, IDENTITY & TOGGLE */}
           <div className="flex items-center gap-4">
-              {appConfig['EXAMBROWSER_MODE'] === 'on' && (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 animate-pulse shrink-0">
-                      <ShieldAlert size={14} className="shrink-0 text-rose-600"/>
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider hidden sm:inline">Exam Browser ON ({violationCount}/3)</span>
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider sm:hidden">EB: {violationCount}/3</span>
-                  </div>
-              )}
               <div className={`flex items-center gap-2 px-3 md:px-4 py-2 rounded-full font-mono font-bold text-sm md:text-lg border shadow-sm ${timeLeft < 300 ? 'bg-rose-50 border-rose-200 text-rose-600 animate-pulse' : 'bg-white border-slate-200 text-slate-700'}`}>
                   <Clock size={18} className="shrink-0"/> {formatTime(timeLeft)}
               </div>
@@ -746,6 +746,7 @@ const StudentExam: React.FC<StudentExamProps> = ({ exam, questions, userFullName
               <div className="flex items-center gap-2"><span className="w-3 h-3 bg-slate-800 rounded-full"></span> Sudah Dijawab</div>
               <div className="flex items-center gap-2"><span className="w-3 h-3 bg-amber-400 rounded-full"></span> Ragu-ragu</div>
           </div>
+      </div>
       </div>
 
       {/* CONFIRM FINISH MODAL */}

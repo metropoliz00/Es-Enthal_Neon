@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { User, Exam, QuestionWithOptions } from './types';
-import { Key, User as UserIcon, AlertCircle, LogOut, Check, Eye, EyeOff, Loader2, Clock, ShieldCheck, PlayCircle, GraduationCap, LogIn, ChevronRight, BookOpen, Fingerprint, Users, Trophy, Bell, Laptop, Sparkles, Radio } from 'lucide-react';
+import { Key, User as UserIcon, AlertCircle, LogOut, Check, Eye, EyeOff, Loader2, Clock, ShieldCheck, PlayCircle, GraduationCap, LogIn, ChevronRight, BookOpen, Fingerprint, Users, Trophy, Bell, Laptop, Sparkles, Radio, Maximize2 } from 'lucide-react';
 import StudentExam from './components/StudentExam';
 import AdminDashboard from './components/AdminDashboard';
 import ScoreboardLCCTab from './components/admin/ScoreboardLCCTab';
@@ -12,7 +12,7 @@ import { isBereguExamType, parseTeamAndMembers } from './utils/adminHelpers';
 import { motion, AnimatePresence } from 'motion/react';
 import { soundFx } from './utils/scoreboardAudio';
 
-type ViewState = 'login' | 'babak_selection' | 'confirm' | 'exam' | 'result' | 'admin' | 'regu_bell';
+type ViewState = 'intro' | 'login' | 'babak_selection' | 'confirm' | 'exam' | 'result' | 'admin' | 'regu_bell';
 
 // Elegant Loading Overlay
 const LoadingOverlay = ({ message }: { message: string }) => (
@@ -621,6 +621,36 @@ function App() {
               </footer>
           </div>
       );
+  }
+
+  if (view === 'intro') {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-center select-none font-sans relative overflow-hidden">
+          <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+             <div className="absolute top-[20%] left-[20%] w-[40%] h-[40%] bg-indigo-600/20 rounded-full blur-[120px]"></div>
+             <div className="absolute bottom-[20%] right-[20%] w-[40%] h-[40%] bg-blue-500/20 rounded-full blur-[120px]"></div>
+          </div>
+          
+          <div className="relative z-10 flex flex-col items-center max-w-xl mx-auto">
+              <div className="w-24 h-24 bg-white/10 rounded-[2rem] flex items-center justify-center text-white shadow-2xl mb-10 border border-white/20">
+                  <Laptop className="w-12 h-12 text-indigo-400" />
+              </div>
+              <h1 className="text-4xl md:text-5xl font-black text-white mb-6 leading-tight tracking-tight">CBT Application <span className="text-indigo-400 block">System</span></h1>
+              <p className="text-slate-300/80 text-base md:text-lg mb-12 font-medium">Platform ujian digital terintegrasi. Untuk melanjutkan dan mencegah kecurangan, aplikasi ini membutuhkan akses layar penuh (Fullscreen).</p>
+              
+              <button 
+                 onClick={async () => {
+                     await enterFullscreen();
+                     setView('login');
+                 }}
+                 className="group relative px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl transition-all shadow-[0_0_40px_rgba(79,70,229,0.4)] hover:shadow-[0_0_60px_rgba(79,70,229,0.6)] hover:-translate-y-1 flex items-center gap-4 text-lg border border-indigo-400/30"
+              >
+                 <Maximize2 className="w-6 h-6 transition-transform group-hover:scale-110" /> 
+                 <span>Mulai Aplikasi (Layar Penuh)</span>
+              </button>
+          </div>
+      </div>
+    );
   }
 
   // --- VIEW: LOGIN ---

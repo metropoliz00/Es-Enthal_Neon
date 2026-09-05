@@ -118,7 +118,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onSwitc
     } catch (e) { console.error(e); } finally { setLoading(false); setIsRefreshing(false); }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  // Auto-refresh every 10 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+        fetchData();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
 
   const navButtonClass = (tab: TabType) => `
     flex items-center ${isCollapsed ? 'justify-center px-0' : 'justify-start px-4'} w-full py-3 my-1.5 rounded-xl font-bold transition-all duration-200 relative group
@@ -387,13 +399,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onSwitc
                     
                     {/* REKAP & ANALISIS for Admin, Guru, and Juri */}
                     {activeTab === 'rekap' && canAccess('rekap') && (
-                        <RekapTab students={dashboardData.allUsers} currentUser={currentUserState} />
+                        <RekapTab students={dashboardData.allUsers || []} currentUser={currentUserState} />
                     )}
                     {activeTab === 'analisis' && canAccess('analisis') && (
-                        <AnalisisTab currentUser={currentUserState} students={dashboardData.allUsers} />
+                        <AnalisisTab currentUser={currentUserState} students={dashboardData.allUsers || []} />
                     )}
                     
-                    {activeTab === 'ranking' && isAdmin(currentUserState.role) && <RankingTab students={dashboardData.allUsers} />}
+                    {activeTab === 'ranking' && isAdmin(currentUserState.role) && <RankingTab students={dashboardData.allUsers || []} />}
                     
                     {/* Allow Konfigurasi for Admin, Guru, and Juri */}
                     {activeTab === 'konfigurasi' && canAccess('konfigurasi') && (

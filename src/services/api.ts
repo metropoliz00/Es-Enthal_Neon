@@ -363,6 +363,14 @@ export const api = {
           active_tp: dataRow.active_tp || '',
           exam_type: dataRow.exam_type || ''
       };
+      // Update status to LOGGED_IN if it's a student
+      if (user.role === 'siswa') {
+          fetch("/api/set-status", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ username: user.username, status: "LOGGED_IN" })
+          }).catch(e => console.error("Failed to update status to LOGGED_IN", e));
+      }
       return { user, error: undefined };
     } catch (e: any) {
         console.error("Login error handler caught exception:", e);
@@ -391,7 +399,16 @@ export const api = {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ username, subject: stringToUuid(subject) })
           });
+          
+          if (res.ok) {
+              fetch("/api/set-status", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ username, status: "WORKING", active_exam: subject })
+              }).catch(console.error);
+          }
           return { success: res.ok };
+
       } catch (e) {
           console.error(e);
           return { success: false };
@@ -961,7 +978,8 @@ export const api = {
 
   getAnalysis: async (subject: string): Promise<any> => {
       try {
-          const res = await fetch(`/api/analysis?subject=${encodeURIComponent(subject)}`);
+          const examId = stringToUuid(subject);
+          const res = await fetch(`/api/analysis?subject=${encodeURIComponent(examId)}`);
           if (!res.ok) return null;
           const data = await res.json();
           return data.list || [];
@@ -1016,7 +1034,16 @@ export const api = {
                   answersList
               })
           });
+          
+          if (res.ok) {
+              fetch("/api/set-status", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ username: payload.user.username, status: "FINISHED", active_exam: "-" })
+              }).catch(console.error);
+          }
           return { success: res.ok };
+
       } catch (e) {
           console.error(e);
           return { success: false };
