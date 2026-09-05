@@ -580,18 +580,37 @@ const RekapTab = ({ students, currentUser }: RekapTabProps) => {
                 <title>Rekap Nilai Sumatif</title>
                 <style>
                     @page { size: A4 landscape; margin: 10mm; }
-                    body { font-family: Arial, sans-serif; font-size: 10pt; }
-                    .header { text-align: center; margin-bottom: 20px; font-weight: bold; text-transform: uppercase; }
-                    .meta { margin-bottom: 15px; width: 100%; }
-                    .meta td { padding: 2px 10px 2px 0; }
-                    table.data { width: 100%; border-collapse: collapse; }
-                    table.data th, table.data td { border: 1px solid #000; padding: 5px; }
-                    table.data th { background-color: #f0f0f0; text-align: center; }
-                    .footer { margin-top: 40px; display: flex; justify-content: space-between; padding: 0 50px; page-break-inside: avoid; }
-                    .signature-box { text-align: center; width: 250px; }
-                    .signature-space { height: 80px; }
+                    *, *::before, *::after {
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                        color-adjust: exact !important;
+                    }
+                    body {
+                        font-family: Arial, sans-serif;
+                        font-size: 9.5pt;
+                        margin: 0;
+                        padding: 0;
+                        background: #fff;
+                        color: #000;
+                        line-height: 1.15;
+                    }
+                    .header { text-align: center; margin-bottom: 15px; font-weight: bold; text-transform: uppercase; line-height: 1.15; }
+                    .meta { margin-bottom: 12px; width: 100%; font-size: 9.5pt; border-collapse: collapse; line-height: 1.15; }
+                    .meta td { padding: 2px 8px 2px 0; }
+                    table.data { width: 100%; border-collapse: collapse; table-layout: auto; page-break-inside: auto; font-size: 9pt; line-height: 1.15; }
+                    table.data thead { display: table-header-group; }
+                    table.data tr { page-break-inside: avoid; break-inside: avoid; }
+                    table.data th, table.data td { border: 1px solid #000; padding: 4px 6px; word-break: normal; overflow-wrap: break-word; }
+                    table.data th { background-color: #f0f0f0 !important; text-align: center; font-weight: bold; }
+                    .footer { margin-top: 25px; display: flex; justify-content: space-between; padding: 0 40px; page-break-inside: avoid; break-inside: avoid; font-size: 10pt; line-height: 1.15; }
+                    .signature-box { text-align: center; width: 250px; font-size: 10pt; line-height: 1.15; }
+                    .signature-box p { margin: 0; line-height: 1.15; }
+                    .signature-space { height: 55px; }
                     .sig-name { font-weight: bold; text-decoration: underline; margin-bottom: 2px; }
                     .sig-nip { margin-top: 0; }
+                    @media print {
+                        body { background: #fff !important; }
+                    }
                 </style>
             </head>
             <body>

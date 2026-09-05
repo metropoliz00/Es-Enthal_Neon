@@ -70,6 +70,63 @@
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
       }
+
+      /* STANDAR PRINT CSS UNTUK SEMUA HALAMAN CETAK */
+      @media print {
+        @page {
+          size: A4;
+          margin: 10mm;
+        }
+        *, *::before, *::after {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
+        body {
+          background-color: #ffffff !important;
+          color: #000000 !important;
+          font-size: 10pt;
+          line-height: 1.15 !important;
+          margin: 0;
+          padding: 0;
+          overflow: visible !important;
+        }
+        .no-print, nav, button, .action-buttons, input[type="file"], .pagination {
+          display: none !important;
+        }
+        p, span, div, h1, h2, h3, h4, h5, h6 {
+          line-height: 1.15;
+        }
+        .signature-box p, .signature-section p, .signature p {
+          margin: 0;
+          line-height: 1.15 !important;
+        }
+        table {
+          width: 100% !important;
+          border-collapse: collapse !important;
+          table-layout: auto !important;
+          page-break-inside: auto;
+        }
+        tr {
+          page-break-inside: avoid;
+          page-break-after: auto;
+        }
+        thead {
+          display: table-header-group;
+        }
+        tfoot {
+          display: table-footer-group;
+        }
+        th, td {
+          word-break: normal;
+          overflow-wrap: break-word;
+          padding: 4px 6px;
+        }
+        .page-break-avoid, .card, .signature-box, .signature-section {
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+        }
+      }
     </style>
   </head>
   <body>

@@ -192,25 +192,36 @@ const CetakKartuTab = ({ currentUser, students, schedules }: { currentUser: User
             <head>
                 <title>Cetak Kartu Peserta</title>
                 <style>
-                    @page { size: A4 portrait; margin: 4mm; }
-                    body { font-family: Arial, sans-serif; -webkit-print-color-adjust: exact; background: #eee; }
+                    @page { size: A4 portrait; margin: 10mm; }
+                    *, *::before, *::after {
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                        color-adjust: exact !important;
+                    }
+                    body {
+                        font-family: Arial, sans-serif;
+                        background: #eee;
+                        margin: 0;
+                        padding: 0;
+                    }
                     .page-container {
                         display: grid;
                         grid-template-columns: repeat(2, 1fr);
-                        gap: 2mm;
+                        gap: 4mm;
                         width: 100%;
-                        max-width: 202mm;
+                        max-width: 190mm;
                         margin: 0 auto;
                     }
                     .card {
-                        background: white;
+                        background: white !important;
                         border: 1px solid #000;
-                        width: 100mm;
-                        height: 68mm;
+                        width: 93mm;
+                        height: 66mm;
                         padding: 5px;
                         box-sizing: border-box;
                         position: relative;
                         page-break-inside: avoid;
+                        break-inside: avoid;
                         display: flex;
                         flex-direction: column;
                     }
@@ -225,9 +236,9 @@ const CetakKartuTab = ({ currentUser, students, schedules }: { currentUser: User
                     }
                     .logo { height: 12mm; width: auto; object-fit: contain; }
                     .header-text { text-align: center; flex: 1; padding: 0 2px; }
-                    .header-text h2 { font-size: 11pt; margin: 0; font-weight: bold; line-height: 1.1; }
-                    .header-text .title-sub { font-size: 9.5pt; margin: 1px 0 0; font-weight: bold; line-height: 1.1; }
-                    .header-text .school-name { font-size: 7.5pt; margin: 1px 0 0; font-style: italic; font-weight: 600; line-height: 1.1; word-break: break-word; }
+                    .header-text h2 { font-size: 10.5pt; margin: 0; font-weight: bold; line-height: 1.15; }
+                    .header-text .title-sub { font-size: 9pt; margin: 1px 0 0; font-weight: bold; line-height: 1.15; }
+                    .header-text .school-name { font-size: 7.5pt; margin: 1px 0 0; font-style: italic; font-weight: 600; line-height: 1.15; word-break: break-word; }
                     
                     .card-body { 
                         display: flex; 
@@ -236,8 +247,9 @@ const CetakKartuTab = ({ currentUser, students, schedules }: { currentUser: User
                         padding-top: 2px;
                     }
                     .info-col { flex: 1; }
-                    .info-table { width: 100%; font-size: 8pt; border-collapse: collapse; line-height: 1.25; }
-                    .info-table td { padding: 1px 1px; vertical-align: top; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55mm; }
+                    .info-table { width: 100%; font-size: 8pt; border-collapse: collapse; line-height: 1.15; table-layout: auto; }
+                    .info-table td { padding: 1px 1px; vertical-align: top; word-break: normal; overflow-wrap: break-word; }
+                    .info-table td:first-child { white-space: nowrap; width: 1%; }
                     
                     .photo-col { width: 22mm; display: flex; justify-content: center; align-items: flex-start; padding-top: 0; }
                     .photo-box {
@@ -249,23 +261,24 @@ const CetakKartuTab = ({ currentUser, students, schedules }: { currentUser: User
                     .card-footer {
                         position: absolute;
                         bottom: 6px;
-                        right: 55px;
-                        width: 160px;
+                        right: 40px;
+                        width: 150px;
                         text-align: center;
                     }
                     .signature {
-                        font-size: 9pt;
+                        font-size: 8.5pt;
+                        line-height: 1.15;
                     }
-                    .signature p { margin: 0; }
+                    .signature p { margin: 0; line-height: 1.15; }
                     .signature .proktor-name {
                         font-size: 7pt; 
-                        line-height: 1.2;
+                        line-height: 1.15;
                     }
                     .sig-space { height: 15px; }
 
                     @media print {
-                        body { background: white; }
-                        .page-container { gap: 2mm; }
+                        body { background: white !important; }
+                        .page-container { gap: 4mm; width: 190mm; }
                     }
                 </style>
             </head>

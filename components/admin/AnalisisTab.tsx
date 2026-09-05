@@ -356,31 +356,42 @@ const AnalisisTab = ({ currentUser, students }: { currentUser: User, students: a
                 <title>Analisis Hasil Asesmen Sumatif</title>
                 <style>
                     @page { size: A4 landscape; margin: 10mm; }
-                    body { font-family: 'Arial', sans-serif; padding: 0; margin: 0; font-size: 9pt; color: #000; }
+                    *, *::before, *::after {
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                        color-adjust: exact !important;
+                    }
+                    body { font-family: 'Arial', sans-serif; padding: 0; margin: 0; font-size: 8.5pt; color: #000; background: #fff; line-height: 1.15; }
                     .container { width: 100%; }
-                    .header-title { text-align: center; font-weight: bold; font-size: 14pt; margin-bottom: 5px; text-transform: uppercase; line-height: 1.2; }
-                    .header-subtitle { text-align: center; font-weight: bold; font-size: 12pt; margin-bottom: 20px; text-transform: uppercase; border-bottom: 3px double #000; padding-bottom: 10px; }
-                    .meta-container { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; font-size: 9pt; }
-                    .meta-table td { padding: 2px 5px; vertical-align: top; }
-                    .meta-label { font-weight: bold; width: 140px; white-space: nowrap; }
+                    .header-title { text-align: center; font-weight: bold; font-size: 13pt; margin-bottom: 4px; text-transform: uppercase; line-height: 1.15; }
+                    .header-subtitle { text-align: center; font-weight: bold; font-size: 11pt; margin-bottom: 12px; text-transform: uppercase; border-bottom: 3px double #000; padding-bottom: 8px; line-height: 1.15; }
+                    .meta-container { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; font-size: 8.5pt; line-height: 1.15; }
+                    .meta-table td { padding: 1.5px 4px; vertical-align: top; }
+                    .meta-label { font-weight: bold; width: 130px; white-space: nowrap; }
                     .tp-container { display: flex; align-items: flex-start; gap: 4px; }
-                    .tp-desc { max-width: 550px; text-align: justify; line-height: 1.2; }
-                    table.data-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 9pt; table-layout: auto; }
-                    table.data-table th, table.data-table td { border: 1px solid #000; padding: 3px; vertical-align: middle; }
-                    table.data-table th { background-color: #f0f0f0; text-align: center; font-weight: bold; padding: 4px 2px; }
-                    .col-no { width: 25px; text-align: center; }
-                    .col-name { width: 140px; } 
-                    .col-score { width: 35px; text-align: center; }
-                    .col-ans { width: 20px; min-width: 20px; max-width: 20px; text-align: center; font-size: 9pt; padding: 0; overflow: hidden; }
-                    .col-status { width: 60px; text-align: center; }
-                    .col-rec { width: 60px; text-align: center; }
-                    .footer { display: flex; justify-content: space-between; margin-top: 20px; page-break-inside: avoid; font-size: 11pt; }
-                    .signature-box { text-align: center; width: 250px; line-height: 1.2; }
-                    .signature-box p { margin: 0; }
-                    .signature-space { height: 60px; }
-                    .sig-name { font-weight: bold; font-size: 11pt; margin-bottom: 2px; text-decoration: underline; } 
-                    .sig-nip { font-size: 10pt; }
-                    .bg-gray { background-color: #f9fafb; }
+                    .tp-desc { max-width: 500px; text-align: justify; line-height: 1.15; }
+                    table.data-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 8.5pt; table-layout: auto; page-break-inside: auto; line-height: 1.15; }
+                    table.data-table thead { display: table-header-group; }
+                    table.data-table tfoot { display: table-footer-group; page-break-inside: avoid; }
+                    table.data-table tr { page-break-inside: avoid; break-inside: avoid; }
+                    table.data-table th, table.data-table td { border: 1px solid #000; padding: 3px 4px; vertical-align: middle; word-break: normal; overflow-wrap: break-word; }
+                    table.data-table th { background-color: #f0f0f0 !important; text-align: center; font-weight: bold; padding: 4px 2px; }
+                    .col-no { width: 1%; white-space: nowrap; text-align: center; }
+                    .col-name { white-space: normal; } 
+                    .col-score { width: 1%; white-space: nowrap; text-align: center; font-weight: bold; }
+                    .col-ans { width: 1%; white-space: nowrap; text-align: center; font-size: 8.5pt; padding: 2px 3px; }
+                    .col-status { width: 1%; white-space: nowrap; text-align: center; }
+                    .col-rec { width: 1%; white-space: nowrap; text-align: center; }
+                    .footer { display: flex; justify-content: space-between; margin-top: 15px; page-break-inside: avoid; break-inside: avoid; font-size: 9.5pt; line-height: 1.15; }
+                    .signature-box { text-align: center; width: 230px; line-height: 1.15; }
+                    .signature-box p { margin: 0; line-height: 1.15; }
+                    .signature-space { height: 50px; }
+                    .sig-name { font-weight: bold; font-size: 9.5pt; margin-bottom: 2px; text-decoration: underline; } 
+                    .sig-nip { font-size: 8.5pt; }
+                    .bg-gray { background-color: #f9fafb !important; }
+                    @media print {
+                        body { background: #fff !important; }
+                    }
                 </style>
             </head>
             <body>

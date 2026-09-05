@@ -199,22 +199,38 @@ const CetakAbsensiTab = ({ currentUser, students }: { currentUser: User, student
             <head>
                 <title>Cetak Absensi</title>
                 <style>
-                    body { font-family: 'Times New Roman', serif; padding: 20px; color: #000; }
-                    .header-container { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px double black; padding-bottom: 10px; margin-bottom: 20px; }
-                    .header-logo { height: 65px; width: auto; object-fit: contain; }
+                    @page { size: A4 portrait; margin: 10mm; }
+                    *, *::before, *::after {
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                        color-adjust: exact !important;
+                    }
+                    body {
+                        font-family: 'Times New Roman', serif;
+                        padding: 0;
+                        margin: 0;
+                        color: #000;
+                        background: #fff;
+                        line-height: 1.15;
+                    }
+                    .header-container { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px double black; padding-bottom: 8px; margin-bottom: 15px; }
+                    .header-logo { height: 60px; width: auto; object-fit: contain; }
                     .header-text { text-align: center; flex: 1; }
-                    .header-container h2 { margin: 0; font-size: 18px; text-transform: uppercase; line-height: 1.2; }
-                    .header-container h3 { margin: 5px 0 0; font-size: 16px; font-weight: normal; }
-                    .info-table { margin-bottom: 20px; font-size: 14px; width: 100%; }
-                    .info-table td { padding: 4px; vertical-align: top; }
-                    .main-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-                    .main-table th, .main-table td { border: 1px solid black; padding: 8px; }
-                    .main-table th { background-color: #f0f0f0; text-align: center; font-weight: bold; }
-                    .signature-section { margin-top: 50px; float: right; width: 250px; text-align: center; font-size: 14px; }
+                    .header-container h2 { margin: 0; font-size: 15pt; text-transform: uppercase; line-height: 1.15; font-weight: bold; }
+                    .header-container h3 { margin: 4px 0 0; font-size: 13pt; font-weight: bold; line-height: 1.15; }
+                    .info-table { margin-bottom: 12px; font-size: 11pt; width: 100%; border-collapse: collapse; line-height: 1.15; }
+                    .info-table td { padding: 2px 4px; vertical-align: top; }
+                    .main-table { width: 100%; border-collapse: collapse; font-size: 10pt; table-layout: auto; page-break-inside: auto; line-height: 1.15; }
+                    .main-table thead { display: table-header-group; }
+                    .main-table tr { page-break-inside: avoid; break-inside: avoid; }
+                    .main-table th, .main-table td { border: 1px solid black; padding: 5px 6px; word-break: normal; overflow-wrap: break-word; }
+                    .main-table th { background-color: #f0f0f0 !important; text-align: center; font-weight: bold; }
+                    .signature-section { margin-top: 30px; float: right; width: 250px; text-align: center; font-size: 11pt; line-height: 1.15; page-break-inside: avoid; break-inside: avoid; }
+                    .signature-section p { margin: 0; line-height: 1.15; }
+                    .signature-space { height: 55px; }
                     @media print {
-                        @page { size: A4; margin: 1.5cm; }
-                        button { display: none; }
-                        body { padding: 0; }
+                        body { padding: 0; background: #fff !important; }
+                        button { display: none !important; }
                     }
                 </style>
             </head>
@@ -252,7 +268,7 @@ const CetakAbsensiTab = ({ currentUser, students }: { currentUser: User, student
                 <div class="signature-section">
                     <p>${signatureDate}</p>
                     <p>Penanggung Jawab</p>
-                    <br/><br/><br/>
+                    <div class="signature-space"></div>
                     <p><strong>${proktorName}</strong></p>
                 </div>
 
